@@ -2,6 +2,7 @@ import os
 import logging
 from flask import Flask
 from threading import Thread
+from telegram.ext import ApplicationBuilder
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Updater, CommandHandler, CallbackQueryHandler, CallbackContext
@@ -94,7 +95,7 @@ def main():
     # Start the web server in a separate thread
     Thread(target=run_flask).start()
 
-    updater = Updater(BOT_TOKEN, use_context=True)
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))

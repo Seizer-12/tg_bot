@@ -35,7 +35,7 @@ def task_menu():
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🎯 To participate in the game, complete the following tasks:\n\n"
+        "🎯 To submit your entry, complete the following tasks:\n\n"
         f"1. Join our Telegram channel\n"
         f"2. Follow our Twitter account ({TWITTER_HANDLE})\n"
         f"3. Join our WhatsApp group\n"
@@ -51,23 +51,27 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
 
     try:
+        # Fetch the user's status in the channel
         chat_member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if chat_member.status not in ["member", "administrator", "creator"]:
-            raise Exception("Not a member")
-    except Exception:
+        user_status = chat_member.status
+
+        # Check if the user is a member
+        if user_status in ["member", "administrator", "creator"]:
+            verified_users.add(user_id)
+            await query.edit_message_text(
+                "✅ Congratulations! You have successfully completed all tasks.\n\n"
+                "You can now use /play to submit your entry"
+            )
+        else:
+            raise Exception("User not a proper member")
+
+    except Exception as e:
+        logger.error(f"Verification failed for user {user_id}: {e}")
         await query.edit_message_text(
-            "❌ You have not joined the Telegram channel. Please complete all tasks first.",
+            "❌ You have not completed all the tasks in the menu yet.\n\n"
+            "Please complete the task and try again:",
             reply_markup=task_menu()
         )
-        return
-
-    # Simulated Twitter check
-    keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
-    await query.edit_message_text(
-        "👀 We can't verify Twitter follows automatically due to API limits.\n\n"
-        "Please click the button below *after* you've followed us on Twitter.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
 
 # --- Confirm Twitter ---
 async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -82,13 +86,14 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Play Command ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
     user_id = update.effective_user.id
     if user_id not in verified_users:
         await update.message.reply_text(
             "❌ You must complete the tasks first. Use /start to begin."
         )
         return
-    await update.message.reply_text("🎮 Welcome to the game! [Insert game logic here...]")
+    await update.message.reply_text(f"Entry successfully submitted for user {query.from_user.username}")
 
 # --- Run Bot ---
 def main():

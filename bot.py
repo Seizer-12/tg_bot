@@ -145,7 +145,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     user_data = get_user(user_id)
-    keyboard = [[InlineKeyboardButton("Menu", callback_data="handle_menu")]]
+    keyboard = [[InlineKeyboardButton("Menu", callback_data="play")]]
 
     if context.user_data.get("awaiting_verification"):
         if not has_claimed_today(user_data, "task_points"):
@@ -155,7 +155,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update_user(user_id, user_data)
             await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.")
+            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=InlineKeyboardMarkup(keyboard))
         context.user_data["awaiting_verification"] = False
 
 

@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 import urllib.parse
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
@@ -145,7 +145,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     user_data = get_user(user_id)
-    keyboard = [[InlineKeyboardButton("Menu", callback_data="play")]]
+    reply_keyboard = [
+        [ KeyboardButton("/play") ]
+    ]
+    markup = ReplyKeyboardMarkup(
+        reply_keyboard,
+        resize_keyboard=True,      # make buttons fit nicely
+        one_time_keyboard=False    # keep the keyboard up until user dismisses
+    )
+    #keyboard = [[InlineKeyboardButton("Menu", callback_data="play")]]
 
     if context.user_data.get("awaiting_verification"):
         if not has_claimed_today(user_data, "task_points"):
@@ -153,9 +161,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mark_claimed_today(user_data, "task_points")
             user_data["verified"] = True
             update_user(user_id, user_data)
-            await query.edit_message_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=markup)
         else:
-            await query.edit_message_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=markup)
         context.user_data["awaiting_verification"] = False
 
 

@@ -137,6 +137,7 @@ async def verify_daily_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 # --- Handle Verification Images ---
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
     user_id = update.effective_user.id
     user_data = get_user(user_id)
 
@@ -150,6 +151,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.")
         context.user_data["awaiting_verification"] = False
+
+        keyboard = [
+        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
+        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
+        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
+        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
+        [InlineKeyboardButton("✅ Verify Task Completion", callback_data="verify_daily_tasks")],
+        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
+        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
 # --- Game Menu ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -166,7 +179,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🎮 Welcome to the game! Use the menu below to explore:", reply_markup=reply_markup)
+    await update.message.reply_text("Welcome utilizer! Use the menu below to explore:", reply_markup=reply_markup)
 
 # --- Menu Handlers ---
 async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -192,7 +205,11 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":
-        text = "📝 Complete the tasks listed earlier and verify to earn points."
+        keyboard = [
+        [InlineKeyboardButton("🐦 Follow Utilizer01", url=f"https://twitter.com/{TWITTER_HANDLE}")],
+        [InlineKeyboardButton("🐦 Post on your X", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
+        [InlineKeyboardButton("🐦 Share to 5 whatsapp group and status", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
+        ]
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5
@@ -202,7 +219,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "❌ You've already claimed today's bonus. Come back tomorrow."
     elif data == "menu_ambassador":
-        text = "🚀 Ambassador upgrade not available yet."
+        text = "🚀 To become an Ambassador, you must have the following... \n 1. Must have invited 50 members. \n 2. Must have above 500 points"
     else:
         text = "Unknown command."
 

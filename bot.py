@@ -72,8 +72,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
-        [InlineKeyboardButton("🐦 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
-        [InlineKeyboardButton("🐦 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
+        [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
+        [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
         [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -102,7 +102,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
     await query.edit_message_text(
         "👀 We can't verify Twitter follows automatically.\n\n"
-        "Click the button below *after* you've followed us.",
+        "Click the button below after you've followed us.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 

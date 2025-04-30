@@ -120,16 +120,7 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["verified_user"] = True
     update_user(user_id, user_data)
 
-    reply_keyboard = [
-        [ KeyboardButton("/play") ]
-    ]
-    markup = ReplyKeyboardMarkup(
-        reply_keyboard,
-        resize_keyboard=True,      # make buttons fit nicely
-        one_time_keyboard=False    # keep the keyboard up until user dismisses
-    )
-
-    await query.edit_message_text("✅ You're verified. Use /play to begin!", reply_markup=markup)
+    await query.edit_message_text("✅ You're verified. Use /play to begin!")
 
 
 # --- Verify Daily Tasks ---

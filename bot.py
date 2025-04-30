@@ -110,7 +110,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = update.effective_user.id
+    user_id = query.from_user.id
     user_data = get_user(user_id)
     user_data["verified_user"] = True
     update_user(user_id, user_data)
@@ -164,6 +164,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
         [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
         [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
+        [InlineKeyboardButton("Verify Daily Task Completion", callback_data="verify_daily_tasks")],
         [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
         [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
     ]
@@ -224,8 +225,10 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
+    app.add_handler(CallbackQueryHandler(verify_daily_tasks, pattern="^verify_daily_tasks$"))
     app.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_.*"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 

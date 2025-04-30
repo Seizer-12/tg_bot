@@ -213,7 +213,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         task_link2 = f"https://twitter.com/intent/tweet?text" + urllib.parse.quote(post_text)
         task_link3 = f"https://wa.me/?text={encoded_text}"
         await update.message.reply_text(
-            f'<a href="{task_link1}">Follow Utilizer01</a> \n <a href="{task_link1}">Post on X (fka Twitter) </a> \n <a href="{task_link3}">Share to 5 whatsapp group and status</a> ',
+            f'<a href="{task_link1}">Follow Utilizer01</a>',
             parse_mode=ParseMode.HTML
         )
     elif data == "menu_bonus":

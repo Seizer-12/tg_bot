@@ -120,7 +120,7 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["verified_user"] = True
     update_user(user_id, user_data)
 
-    await query.edit_message_text("✅ You're verified. Tap or type /play to begin!")
+    await query.edit_message_text("✅ You're verified. \nTap or type /play to begin!")
 
 
 # --- Verify Daily Tasks ---

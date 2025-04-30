@@ -120,7 +120,16 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["verified_user"] = True
     update_user(user_id, user_data)
 
-    await query.edit_message_text("✅ You're verified. Use /play to begin!")
+    reply_keyboard = [
+        [ KeyboardButton("/play") ]
+    ]
+    markup = ReplyKeyboardMarkup(
+        reply_keyboard,
+        resize_keyboard=True,      # make buttons fit nicely
+        one_time_keyboard=False    # keep the keyboard up until user dismisses
+    )
+
+    await query.edit_message_text("✅ You're verified. Use /play to begin!", reply_markup=markup)
 
 
 # --- Verify Daily Tasks ---
@@ -204,12 +213,12 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         position = next((i for i, (uid, _) in enumerate(sorted_users, 1) if uid == str(user_id)), None)
         if position is not None:
             rank = position + 1064
-            text = f"🏆 Your leaderboard position: {rank}"
+            text = f"🏆 Your leaderboard position: {rank} \n You could be 1 of 1,000 lucky members picked to be a verified tester and earn $50 every 2 weeks, no payment needed! \n Earn more points to rank up!"
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":
         task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
-        post_text = "I'm joining THE UTILIZER, you should also"
+        post_text = "I just joined the Utilizers and you should too! \n Get picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n Act fast, spots are limited!"
         encoded_text = urllib.parse.quote(post_text)
         task_link2 = f"https://twitter.com/intent/tweet?text" + urllib.parse.quote(post_text)
         task_link3 = f"https://wa.me/?text={encoded_text}"

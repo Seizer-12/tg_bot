@@ -211,7 +211,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
         post_text = "I just joined the Utilizers and you should too! \n\nGet picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n\nAct fast, spots are limited!"
         encoded_text = urllib.parse.quote(post_text)
-        task_link2 = f"https://twitter.com/intent/tweet?text={post_text.replace(' ', '%20')}"
+        task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
         task_link3 = f"https://wa.me/?text={encoded_text}"
         text = f"📝 Follow Utilizer01 {task_link1} \n\n 📝 Post on X (fka Twitter) {task_link2} \n\n 📝 Share to 5 whatsapp group and status {task_link3}"
     elif data == "menu_bonus":

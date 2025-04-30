@@ -206,7 +206,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":
-        text = "📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to visit the site. \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to post on X \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to share to 5 whatsapp group and status. \n",parse_mode="MarkdownV2"
+        text = f"📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to visit the site. \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to post on X \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to share to 5 whatsapp group and status. \n",parse_mode="MarkdownV2"
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5

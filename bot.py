@@ -157,17 +157,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.")
         context.user_data["awaiting_verification"] = False
 
-        keyboard = [
-        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
-        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
-        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
-        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("✅ Verify Task Completion", callback_data="verify_daily_tasks")],
-        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
-        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup)
+        keyboard = [[InlineKeyboardButton("Menu", callback_data="handle_menu")]]
+        await query.edit_message_text(
+            "Return to the Menu to explore more.\n\n",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
 
 # --- Game Menu ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):

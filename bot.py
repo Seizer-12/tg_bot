@@ -161,7 +161,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
         [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
         [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("Verify Daily Task Completion", callback_data="verify_daily_tasks")],
+        [InlineKeyboardButton("✅ Verify Daily Task Completion", callback_data="verify_daily_tasks")],
         [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
         [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
     ]

@@ -145,6 +145,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     user_data = get_user(user_id)
+    keyboard = [[InlineKeyboardButton("Menu", callback_data="handle_menu")]]
 
     if context.user_data.get("awaiting_verification"):
         if not has_claimed_today(user_data, "task_points"):
@@ -152,16 +153,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mark_claimed_today(user_data, "task_points")
             user_data["verified"] = True
             update_user(user_id, user_data)
-            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.")
+            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=InlineKeyboardMarkup(keyboard))
         else:
             await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.")
         context.user_data["awaiting_verification"] = False
-
-        keyboard = [[InlineKeyboardButton("Menu", callback_data="handle_menu")]]
-        await query.edit_message_text(
-            "Return to the Menu to explore more.\n\n",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
 
 
 # --- Game Menu ---

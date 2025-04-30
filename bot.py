@@ -1,12 +1,12 @@
 # bot.py
 
 import os
+import json
 import logging
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 )
 
 load_dotenv()
@@ -19,31 +19,77 @@ TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Store verified users
-verified_users = set()
+DATA_FILE = "user_data.json"
 
-# --- Task Menu Keyboard ---
-def task_menu():
-    keyboard = [
-        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
-        [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
-        [InlineKeyboardButton("📱 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
-        [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
-        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+
+# --- Utility Functions ---
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def get_user(user_id):
+    data = load_data()
+    return data.get(str(user_id), {
+        "verified": False,
+        "points": 0,
+        "referrals": [],
+        "screenshot_uploaded": False,
+        "username": "",
+    })
+
+
+def update_user(user_id, updates):
+    data = load_data()
+    uid = str(user_id)
+    if uid not in data:
+        data[uid] = get_user(user_id)
+    data[uid].update(updates)
+    save_data(data)
+
+
+def generate_referral_link(user_id):
+    return f"https://t.me/{os.getenv('BOT_USERNAME')}?start={user_id}"
+
 
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or ""
+
+    if context.args:
+        referrer_id = context.args[0]
+        if referrer_id != str(user_id):
+            ref_data = get_user(referrer_id)
+            if str(user_id) not in ref_data["referrals"]:
+                ref_data["referrals"].append(str(user_id))
+                ref_data["points"] += 10  # Reward referrer
+                update_user(referrer_id, ref_data)
+
+    update_user(user_id, {"username": username})  # Save username
+
+    keyboard = [
+        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
+        [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
+        [InlineKeyboardButton("🐦 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
+        [InlineKeyboardButton("🐦 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
+        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
+    ]
     await update.message.reply_text(
-        "🎯 To submit your entry, complete the following tasks:\n\n"
-        f"1. Join our Telegram channel\n"
-        f"2. Follow our Twitter account ({TWITTER_HANDLE})\n"
-        f"3. Join our WhatsApp group\n"
-        f"4. Join our WhatsApp channel\n\n"
-        "After that, click the button below to verify!",
-        reply_markup=task_menu()
+        "🎯 To participate in the game, complete the following tasks:\n\n"
+        "1. Join our Telegram channel\n"
+        "2. Follow our Twitter account\n\n"
+        "Then click 'Verify Tasks'.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
 
 # --- Verify Tasks ---
 async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -52,151 +98,126 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
 
     try:
-        # Fetch the user's status in the channel
-        chat_member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        user_status = chat_member.status
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if member.status not in ["member", "administrator", "creator"]:
+            raise Exception("Not joined")
+    except Exception:
+        await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
+        return
 
-        # Check if the user is a member
-        if user_status in ["member", "administrator", "creator"]:
-            verified_users.add(user_id)
-            await query.edit_message_text(
-                "✅ Congratulations! You have successfully completed all tasks.\n\n"
-                "You can now use /play to join"
-            )
-        else:
-            raise Exception("User not a proper member")
+    keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
+    await query.edit_message_text(
+        "👀 We can't verify Twitter follows automatically.\n\n"
+        "Click the button below *after* you've followed us.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-    except Exception as e:
-        logger.error(f"Verification failed for user {user_id}: {e}")
-        await query.edit_message_text(
-            "❌ You have not completed all the tasks in the menu yet.\n\n"
-            "Please complete the task and try again:",
-            reply_markup=task_menu()
-        )
 
 # --- Confirm Twitter ---
 async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-    verified_users.add(user_id)
 
-    await query.edit_message_text(
-        "✅ Details submitted successfully. You can now use /play to start the game!"
-    )
+    update_user(user_id, {"verified": True})
+    await query.edit_message_text("✅ You're verified. Use /play to begin!")
 
-"""
+
 # --- Play Command ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    username = query.from_user.username
     user_id = update.effective_user.id
-    if user_id not in verified_users:
-        await update.message.reply_text(
-            "❌ You must complete the tasks first. Use /start to begin."
-        )
-        return
-    await update.message.reply_text(f"Entry successfully submitted for user {query.from_user.username}")
-"""
+    user_data = get_user(user_id)
 
-def play_menu():
+    if not user_data.get("verified"):
+        await update.message.reply_text("❌ You must complete tasks first. Use /start to begin.")
+        return
+
     keyboard = [
-        [InlineKeyboardButton("💰 Points Balance", callback_data="menu_points")],
-        [InlineKeyboardButton("🤝 Referral", callback_data="menu_referral")],
-        [InlineKeyboardButton("📊 Position", callback_data="menu_position")],
-        [InlineKeyboardButton("📌 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("📤 Verify Tasks Completion", callback_data="menu_verify_tasks")],
-        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_upgrade")]
+        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
+        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
+        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
+        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
+        [InlineKeyboardButton("📸 Verify Tasks Completion", callback_data="menu_verify_tasks")],
+        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
     ]
-    return InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("🎮 Welcome! Use the menu below:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- Play Command ---
-async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+# --- Menu Callbacks ---
+async def menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_data = get_user(user_id)
+
+    if query.data == "menu_points":
+        await query.edit_message_text(f"📊 You have {user_data.get('points', 0)} points.")
+
+    elif query.data == "menu_referral":
+        ref_link = generate_referral_link(user_id)
+        count = len(user_data.get("referrals", []))
+        await query.edit_message_text(f"👥 Your referral link:\n{ref_link}\n\nYou’ve referred {count} users.")
+
+    elif query.data == "menu_position":
+        data = load_data()
+        sorted_users = sorted(data.items(), key=lambda x: x[1].get("points", 0), reverse=True)
+        position = 1065  # default start
+        for i, (uid, udata) in enumerate(sorted_users, start=1):
+            if str(user_id) == uid:
+                position = i + 1064
+                break
+        await query.edit_message_text(f"🏆 Your leaderboard position: {position}")
+
+    elif query.data == "menu_tasks":
+        await query.edit_message_text(
+            "📝 Complete the following tasks:\n"
+            "1. Join our Telegram: https://t.me/{CHANNEL_USERNAME}\n"
+            "2. Follow us on Twitter: https://twitter.com/{TWITTER_HANDLE}\n"
+            "3. Join our WhatsApp group & channel"
+        )
+
+    elif query.data == "menu_verify_tasks":
+        await query.edit_message_text(
+            "📸 Upload a screenshot showing you've completed all tasks.\n"
+            "⚠️ Submissions will be manually verified."
+        )
+
+    elif query.data == "menu_ambassador":
+        await query.edit_message_text(
+            "🚀 To become an ambassador:\n"
+            "- At least 10 verified referrals\n"
+            "- 200 points minimum\n"
+            "Reply here to apply."
+        )
+
+
+# --- Screenshot Upload ---
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id not in verified_users:
-        await update.message.reply_text("❌ You must complete the tasks first. Use /start to begin.")
-        return
+    photo = update.message.photo[-1]
+    file_path = f"screenshots/{user_id}.jpg"
+    os.makedirs("screenshots", exist_ok=True)
+    await photo.get_file().download_to_drive(file_path)
 
-    await update.message.reply_text(
-        "🎮 Welcome to the game menu. Choose an option below to continue:",
-        reply_markup=play_menu()
-    )
-
-# --- Menu Handlers ---
-
-async def menu_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    user = update.callback_query.from_user
-    points = 100  # Replace with dynamic user value
-    await update.callback_query.edit_message_text(f"💰 *Your current points:* `{points}`", parse_mode=ParseMode.MARKDOWN)
-
-async def menu_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    user = update.callback_query.from_user
-    referral_link = f"https://t.me/{context.bot.username}?start={user.id}"
-    referrals = 5  # Replace with real tracking
-    await update.callback_query.edit_message_text(
-        f"🤝 *Your Referral Link:*\n{referral_link}\n\n"
-        f"📈 Total Referrals: {referrals}",
-        parse_mode=ParseMode.MARKDOWN
-    )
-
-async def menu_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    position = 1065 + 1  # Simulate example
-    await update.callback_query.edit_message_text(f"📊 Your current leaderboard position is: *{position}*", parse_mode=ParseMode.MARKDOWN)
-
-async def menu_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    task_list = (
-        "📌 *Available Tasks:*\n\n"
-        "1. Join our Telegram group: https://t.me/examplegroup\n"
-        "2. Follow us on Twitter: https://twitter.com/example\n"
-        "3. Like our Instagram page: https://instagram.com/example\n\n"
-        "_Complete all tasks before verifying_ ✅"
-    )
-    await update.callback_query.edit_message_text(task_list, parse_mode=ParseMode.MARKDOWN)
-
-async def menu_verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    warning = (
-        "📤 *Upload Screenshots of Completed Tasks*\n\n"
-        "Please send screenshots of your completed tasks here.\n"
-        "⚠️ All submissions will be reviewed manually. Submitting fake proofs may lead to disqualification."
-    )
-    await update.callback_query.edit_message_text(warning, parse_mode=ParseMode.MARKDOWN)
-
-async def menu_upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    criteria = (
-        "🚀 *Upgrade to Ambassador*\n\n"
-        "To become an ambassador, you must:\n"
-        "• Refer at least 50 users\n"
-        "• Complete all available tasks\n"
-        "• Maintain an active presence in the group\n\n"
-        "If you meet these criteria, reply here to apply!"
-    )
-    await update.callback_query.edit_message_text(criteria, parse_mode=ParseMode.MARKDOWN)
+    update_user(user_id, {"screenshot_uploaded": True})
+    await update.message.reply_text("✅ Screenshot received. It will be reviewed shortly.")
 
 
-# --- Run Bot ---
+# --- Main ---
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
+
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
+    app.add_handler(CallbackQueryHandler(menu_buttons, pattern="^menu_"))
 
-    app.add_handler(CallbackQueryHandler(menu_points, pattern="^menu_points$"))
-    app.add_handler(CallbackQueryHandler(menu_referral, pattern="^menu_referral$"))
-    app.add_handler(CallbackQueryHandler(menu_position, pattern="^menu_position$"))
-    app.add_handler(CallbackQueryHandler(menu_tasks, pattern="^menu_tasks$"))
-    app.add_handler(CallbackQueryHandler(menu_verify_tasks, pattern="^menu_verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(menu_upgrade, pattern="^menu_upgrade$"))
-
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()

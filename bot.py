@@ -153,9 +153,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mark_claimed_today(user_data, "task_points")
             user_data["verified"] = True
             update_user(user_id, user_data)
-            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=InlineKeyboardMarkup(keyboard))
         context.user_data["awaiting_verification"] = False
 
 

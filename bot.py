@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime
 import urllib.parse
+from telegram.constants import ParseMode
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -211,7 +212,10 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         encoded_text = urllib.parse.quote(post_text)
         task_link2 = f"https://twitter.com/intent/tweet?text" + urllib.parse.quote(post_text)
         task_link3 = f"https://wa.me/?text={encoded_text}"
-        text = f"📝 Follow Utilizer01 {task_link1} \n 📝 Post on X (fka Twitter) {task_link2} \n 📝 Share to 5 whatsapp group and status {task_link3}"
+        await update.message.reply_text(
+            f'<a href="{task_link1}">Follow Utilizer01</a> \n <a href="{task_link1}">Post on X (fka Twitter) </a> \n <a href="{task_link3}">Share to 5 whatsapp group and status</a> ',
+            parse_mode=ParseMode.HTML
+        )
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5

@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
@@ -62,6 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if referrer_id != str(user.id):
                 referrer_data = get_user(referrer_id)
                 referrer_data["points"] = referrer_data.get("points", 0) + 25
+                referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
                 user_data["referral"] = referrer_id
 
@@ -97,27 +98,24 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
         return
 
-    keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
-    await query.edit_message_text(
-        "👀 We can't verify Twitter follows automatically due to API limits.\n\n"
-        "Please click the button below *after* you've followed us on Twitter.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text("📸 Please upload screenshots to verify task completion.")
+    context.user_data["awaiting_verification"] = True
 
-# --- Confirm Twitter ---
-async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
+# --- Handle Verification Images ---
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     user_data = get_user(user_id)
-    if not has_claimed_today(user_data, "task_points"):
-        user_data["points"] = user_data.get("points", 0) + 30  # 3 tasks x 10 points
-        mark_claimed_today(user_data, "task_points")
-    user_data["verified"] = True
-    update_user(user_id, user_data)
 
-    await query.edit_message_text("✅ Tasks completed and 30 points awarded. Use /play to continue.")
+    if context.user_data.get("awaiting_verification"):
+        if not has_claimed_today(user_data, "task_points"):
+            user_data["points"] = user_data.get("points", 0) + 30
+            mark_claimed_today(user_data, "task_points")
+            user_data["verified"] = True
+            update_user(user_id, user_data)
+            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.")
+        else:
+            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.")
+        context.user_data["awaiting_verification"] = False
 
 # --- Game Menu ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,8 +124,6 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_data.get("verified"):
         await update.message.reply_text("❌ You must complete the tasks first. Use /start to begin.")
         return
-
-    referral_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
     keyboard = [
         [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
@@ -151,11 +147,20 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_points":
         text = f"💰 Your current points: {user_data.get('points', 0)}"
     elif data == "menu_referral":
-        text = f"👥 Share your referral link: https://t.me/{BOT_USERNAME}?start={user_id}"
+        ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        count = user_data.get("referrals", 0)
+        text = f"👥 Your referral link:\n{ref_link}\n\nTotal referrals: {count}"
     elif data == "menu_position":
-        text = "🏆 Leaderboard not implemented yet."
+        all_users = load_data()
+        sorted_users = sorted(all_users.items(), key=lambda x: x[1].get("points", 0), reverse=True)
+        position = next((i for i, (uid, _) in enumerate(sorted_users, 1) if uid == str(user_id)), None)
+        if position is not None:
+            rank = position + 1064
+            text = f"🏆 Your leaderboard position: {rank}"
+        else:
+            text = "❌ Could not determine your position."
     elif data == "menu_tasks":
-        text = "📝 Tasks completed. Come back tomorrow to claim more points."
+        text = "📝 Complete the tasks listed earlier and verify to earn points."
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5
@@ -187,8 +192,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_.*"))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     app.run_polling()
 

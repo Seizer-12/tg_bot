@@ -84,8 +84,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# --- Verify Tasks ---
+
 async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    try:
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if member.status not in ["member", "administrator", "creator"]:
+            raise Exception("Not joined")
+    except Exception:
+        await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
+        return
+
+    keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
+    await query.edit_message_text(
+        "👀 We can't verify Twitter follows automatically.\n\n"
+        "Click the button below *after* you've followed us.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+# --- Confirm Twitter ---
+async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    user_data = get_user(user_id)
+    user_data["verified_user"] = True
+    update_user(user_id, user_data)
+
+    await query.edit_message_text("✅ You're verified. Use /play to begin!")
+
+
+# --- Verify Daily Tasks ---
+async def verify_daily_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -121,7 +155,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data = get_user(user_id)
-    if not user_data.get("verified"):
+    if not user_data.get("verified_user"):
         await update.message.reply_text("❌ You must complete the tasks first. Use /start to begin.")
         return
 

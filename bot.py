@@ -4,9 +4,9 @@ import os
 import json
 import logging
 from datetime import datetime
+import urllib.parse
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
@@ -206,7 +206,12 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":
-        text = f"📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to visit the site. \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to post on X \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to share to 5 whatsapp group and status. \n",parse_mode="MarkdownV2"
+        task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
+        post_text = "I'm joining THE UTILIZER, you should also"
+        encoded_text = urllib.parse.quote(post_text)
+        task_link2 = f"https://twitter.com/intent/tweet?text" + urllib.parse.quote(post_text)
+        task_link3 = f"https://wa.me/?text={encoded_text}"
+        text = f"📝 Follow Utilizer01 {task_link1} \n 📝 Post on X (fka Twitter) {task_link2} \n 📝 Share to 5 whatsapp group and status {task_link3}"
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5

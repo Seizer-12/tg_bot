@@ -3,10 +3,11 @@
 import os
 import json
 import logging
+from datetime import datetime
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
 
 load_dotenv()
@@ -14,13 +15,13 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
+BOT_USERNAME = "Seizer_affBot"
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATA_FILE = "user_data.json"
-
 
 # --- Utility Functions ---
 def load_data():
@@ -29,51 +30,42 @@ def load_data():
             return json.load(f)
     return {}
 
-
 def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-
 def get_user(user_id):
     data = load_data()
-    return data.get(str(user_id), {
-        "verified": False,
-        "points": 0,
-        "referrals": [],
-        "screenshot_uploaded": False,
-        "username": "",
-    })
+    return data.get(str(user_id), {})
 
-
-def update_user(user_id, updates):
+def update_user(user_id, user_info):
     data = load_data()
-    uid = str(user_id)
-    if uid not in data:
-        data[uid] = get_user(user_id)
-    data[uid].update(updates)
+    data[str(user_id)] = user_info
     save_data(data)
 
+def has_claimed_today(user_info, field):
+    today = datetime.utcnow().date().isoformat()
+    return user_info.get(field, {}).get("date") == today
 
-def generate_referral_link(user_id):
-    return f"https://t.me/{os.getenv('BOT_USERNAME')}?start={user_id}"
-
+def mark_claimed_today(user_info, field):
+    today = datetime.utcnow().date().isoformat()
+    user_info[field] = {"date": today}
 
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    username = update.effective_user.username or ""
+    user = update.effective_user
+    user_data = get_user(user.id)
 
-    if context.args:
-        referrer_id = context.args[0]
-        if referrer_id != str(user_id):
-            ref_data = get_user(referrer_id)
-            if str(user_id) not in ref_data["referrals"]:
-                ref_data["referrals"].append(str(user_id))
-                ref_data["points"] += 10  # Reward referrer
-                update_user(referrer_id, ref_data)
+    if "referral" not in user_data:
+        if context.args:
+            referrer_id = context.args[0]
+            if referrer_id != str(user.id):
+                referrer_data = get_user(referrer_id)
+                referrer_data["points"] = referrer_data.get("points", 0) + 25
+                update_user(referrer_id, referrer_data)
+                user_data["referral"] = referrer_id
 
-    update_user(user_id, {"username": username})  # Save username
+    update_user(user.id, user_data)
 
     keyboard = [
         [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
@@ -82,14 +74,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🐦 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
         [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
     ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "🎯 To participate in the game, complete the following tasks:\n\n"
-        "1. Join our Telegram channel\n"
-        "2. Follow our Twitter account\n\n"
-        "Then click 'Verify Tasks'.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        f"1. Join our Telegram channel\n"
+        f"2. Follow our Twitter account ({TWITTER_HANDLE})\n\n"
+        "After that, click the button below to verify!",
+        reply_markup=reply_markup
     )
-
 
 # --- Verify Tasks ---
 async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -98,20 +90,19 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
 
     try:
-        member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if member.status not in ["member", "administrator", "creator"]:
-            raise Exception("Not joined")
+        chat_member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if chat_member.status not in ["member", "administrator", "creator"]:
+            raise Exception("Not a member")
     except Exception:
         await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
         return
 
     keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
     await query.edit_message_text(
-        "👀 We can't verify Twitter follows automatically.\n\n"
-        "Click the button below *after* you've followed us.",
+        "👀 We can't verify Twitter follows automatically due to API limits.\n\n"
+        "Please click the button below *after* you've followed us on Twitter.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
 
 # --- Confirm Twitter ---
 async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,105 +110,87 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
 
-    update_user(user_id, {"verified": True})
-    await query.edit_message_text("✅ You're verified. Use /play to begin!")
+    user_data = get_user(user_id)
+    if not has_claimed_today(user_data, "task_points"):
+        user_data["points"] = user_data.get("points", 0) + 30  # 3 tasks x 10 points
+        mark_claimed_today(user_data, "task_points")
+    user_data["verified"] = True
+    update_user(user_id, user_data)
 
+    await query.edit_message_text("✅ Tasks completed and 30 points awarded. Use /play to continue.")
 
-# --- Play Command ---
+# --- Game Menu ---
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data = get_user(user_id)
-
     if not user_data.get("verified"):
-        await update.message.reply_text("❌ You must complete tasks first. Use /start to begin.")
+        await update.message.reply_text("❌ You must complete the tasks first. Use /start to begin.")
         return
+
+    referral_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
     keyboard = [
         [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
         [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
         [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
         [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("📸 Verify Tasks Completion", callback_data="menu_verify_tasks")],
+        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
         [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
     ]
-    await update.message.reply_text("🎮 Welcome! Use the menu below:", reply_markup=InlineKeyboardMarkup(keyboard))
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("🎮 Welcome to the game! Use the menu below to explore:", reply_markup=reply_markup)
 
-
-# --- Menu Callbacks ---
-async def menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- Menu Handlers ---
+async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     user_data = get_user(user_id)
+    data = query.data
 
-    if query.data == "menu_points":
-        await query.edit_message_text(f"📊 You have {user_data.get('points', 0)} points.")
+    if data == "menu_points":
+        text = f"💰 Your current points: {user_data.get('points', 0)}"
+    elif data == "menu_referral":
+        text = f"👥 Share your referral link: https://t.me/{BOT_USERNAME}?start={user_id}"
+    elif data == "menu_position":
+        text = "🏆 Leaderboard not implemented yet."
+    elif data == "menu_tasks":
+        text = "📝 Tasks completed. Come back tomorrow to claim more points."
+    elif data == "menu_bonus":
+        if not has_claimed_today(user_data, "bonus_points"):
+            user_data["points"] = user_data.get("points", 0) + 5
+            mark_claimed_today(user_data, "bonus_points")
+            update_user(user_id, user_data)
+            text = "🎁 You claimed your 5 daily bonus points!"
+        else:
+            text = "❌ You've already claimed today's bonus. Come back tomorrow."
+    elif data == "menu_ambassador":
+        text = "🚀 Ambassador upgrade not available yet."
+    else:
+        text = "Unknown command."
 
-    elif query.data == "menu_referral":
-        ref_link = generate_referral_link(user_id)
-        count = len(user_data.get("referrals", []))
-        await query.edit_message_text(f"👥 Your referral link:\n{ref_link}\n\nYou’ve referred {count} users.")
+    keyboard = [
+        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
+        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
+        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
+        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
+        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
+        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
-    elif query.data == "menu_position":
-        data = load_data()
-        sorted_users = sorted(data.items(), key=lambda x: x[1].get("points", 0), reverse=True)
-        position = 1065  # default start
-        for i, (uid, udata) in enumerate(sorted_users, start=1):
-            if str(user_id) == uid:
-                position = i + 1064
-                break
-        await query.edit_message_text(f"🏆 Your leaderboard position: {position}")
-
-    elif query.data == "menu_tasks":
-        await query.edit_message_text(
-            "📝 Complete the following tasks:\n"
-            "1. Join our Telegram: https://t.me/{CHANNEL_USERNAME}\n"
-            "2. Follow us on Twitter: https://twitter.com/{TWITTER_HANDLE}\n"
-            "3. Join our WhatsApp group & channel"
-        )
-
-    elif query.data == "menu_verify_tasks":
-        await query.edit_message_text(
-            "📸 Upload a screenshot showing you've completed all tasks.\n"
-            "⚠️ Submissions will be manually verified."
-        )
-
-    elif query.data == "menu_ambassador":
-        await query.edit_message_text(
-            "🚀 To become an ambassador:\n"
-            "- At least 10 verified referrals\n"
-            "- 200 points minimum\n"
-            "Reply here to apply."
-        )
-
-
-# --- Screenshot Upload ---
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    photo = update.message.photo[-1]
-    file_path = f"screenshots/{user_id}.jpg"
-    os.makedirs("screenshots", exist_ok=True)
-    await photo.get_file().download_to_drive(file_path)
-
-    update_user(user_id, {"screenshot_uploaded": True})
-    await update.message.reply_text("✅ Screenshot received. It will be reviewed shortly.")
-
-
-# --- Main ---
+# --- Run Bot ---
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
-
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
-    app.add_handler(CallbackQueryHandler(menu_buttons, pattern="^menu_"))
-
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_.*"))
 
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()

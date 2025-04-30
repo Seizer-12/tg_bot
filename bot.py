@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
@@ -205,11 +206,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":
-        keyboard = [
-        [InlineKeyboardButton("🐦 Follow Utilizer01", url=f"https://twitter.com/{TWITTER_HANDLE}")],
-        [InlineKeyboardButton("🐦 Post on your X", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
-        [InlineKeyboardButton("🐦 Share to 5 whatsapp group and status", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
-        ]
+        text = "📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to visit the site. \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to post on X \n 📝 Click [here](https://twitter.com/{TWITTER_HANDLE}) to share to 5 whatsapp group and status. \n",parse_mode="MarkdownV2"
     elif data == "menu_bonus":
         if not has_claimed_today(user_data, "bonus_points"):
             user_data["points"] = user_data.get("points", 0) + 5

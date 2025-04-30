@@ -222,7 +222,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📝 <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>"
         )
 
-        await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+        await query.message.reply_text(message, parse_mode=ParseMode.HTML)
 
         #text = f"📝 Follow Utilizer01 {task_link1} \n\n 📝 Post on X (fka Twitter) {task_link2} \n\n 📝 Share to 5 whatsapp group and status {task_link3}"
     elif data == "menu_bonus":

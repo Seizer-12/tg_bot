@@ -66,6 +66,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
                 user_data["referral"] = referrer_id
+                await update.message.reply_text(
+                    "🎯 You just referred a user and got 25 Points...",
+                    reply_markup=reply_markup
+                )
 
     update_user(user.id, user_data)
 

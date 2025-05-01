@@ -83,7 +83,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"🎯 **WELCOME {user.username}** \n\nTo participate in the campaign, complete the following tasks:\n\n"
+        f"🎯 WELCOME {user.username} \n\nTo participate in the campaign, complete the following tasks:\n\n"
         f"1. Join our Telegram channel\n"
         f"2. Follow our Twitter account ({TWITTER_HANDLE})\n\n"
         "After that, click the button below to verify!",
@@ -194,7 +194,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "menu_points":
-        text = f"💰 Your current points: **{user_data.get('points', 0)}**"
+        text = f"💰 Your current points: {user_data.get('points', 0)}"
     elif data == "menu_referral":
         ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
         count = user_data.get("referrals", 0)
@@ -205,7 +205,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         position = next((i for i, (uid, _) in enumerate(sorted_users, 1) if uid == str(user_id)), None)
         if position is not None:
             rank = position + 1064
-            text = f"🏆 **Your leaderboard position: {rank}** \n\nYou could be 1 of 1,000 lucky members picked to be a verified tester and earn $50 every 2 weeks, no payment needed! \n\nEarn more points to rank up!"
+            text = f"🏆 Your leaderboard position: {rank} \n\nYou could be 1 of 1,000 lucky members picked to be a verified tester and earn $50 every 2 weeks, no payment needed! \n\nEarn more points to rank up!"
         else:
             text = "❌ Could not determine your position."
     elif data == "menu_tasks":

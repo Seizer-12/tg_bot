@@ -83,8 +83,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"🎯 WELCOME {user.username} \n\nTo participate in the campaign, complete the following tasks below:\n\n"
-        "After that, click the button below to verify!",
+        f"🎯 WELCOME {user.username} \n\nTo participate in the campaign, complete the tasks below:\n\n\n"
+        "Click the Verify Tasks button below to verify!",
         reply_markup=reply_markup
     )
 

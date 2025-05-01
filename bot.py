@@ -17,7 +17,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
-BOT_USERNAME = "Seizer_affBot"
+BOT_USERNAME = "UtilizersBot"
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -83,7 +83,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🎯 WELCOME UTILIZER \n\nTo participate in the campaign, complete the following tasks:\n\n"
+        f"🎯 WELCOME UTILIZER {user.username} \n\nTo participate in the campaign, complete the following tasks:\n\n"
         f"1. Join our Telegram channel\n"
         f"2. Follow our Twitter account ({TWITTER_HANDLE})\n\n"
         "After that, click the button below to verify!",

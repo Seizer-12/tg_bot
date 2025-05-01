@@ -83,7 +83,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🎯 To participate in the game, complete the following tasks:\n\n"
+        "🎯 WELCOME UTILIZER \n\nTo participate in the campaign, complete the following tasks:\n\n"
         f"1. Join our Telegram channel\n"
         f"2. Follow our Twitter account ({TWITTER_HANDLE})\n\n"
         "After that, click the button below to verify!",

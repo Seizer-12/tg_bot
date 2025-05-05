@@ -4,7 +4,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram import (
-    Update, ReplyKeyboardMarkup, KeyboardButton
+    Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -170,41 +170,43 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("✅ You've already completed the tasks.")
     return ConversationHandler.END
 
-# Set Account
+
+# Account setting
+ACCOUNT_BANK, ACCOUNT_NUMBER, ACCOUNT_NAME = range(3)
+
 async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏦 Enter your bank name (Opay or Palmpay):")
-    context.user_data["awaiting"] = "bank_name"
+    markup = ReplyKeyboardMarkup([
+        ["Opay", "Palmpay"]
+    ], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("🏦 Choose your bank:", reply_markup=markup)
+    return ACCOUNT_BANK
 
-async def handle_account_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data = get_user(update.effective_user.id)
-    state = context.user_data.get("awaiting")
+async def get_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["bank"] = update.message.text
+    await update.message.reply_text("🔢 Enter your account number:", reply_markup=ReplyKeyboardRemove())
+    return ACCOUNT_NUMBER
 
-    if state == "bank_name":
-        bank = update.message.text.strip().lower()
-        if bank not in ["opay", "palmpay"]:
-            await update.message.reply_text("❌ Invalid bank. Choose Opay or Palmpay.")
-            return
-        context.user_data["bank_name"] = bank
-        context.user_data["awaiting"] = "account_number"
-        await update.message.reply_text("🔢 Enter your account number:")
-    elif state == "account_number":
-        acc_num = update.message.text.strip()
-        if not acc_num.isdigit() or len(acc_num) != 10:
-            await update.message.reply_text("❌ Invalid account number. Must be 10 digits.")
-            return
-        context.user_data["account_number"] = acc_num
-        context.user_data["awaiting"] = "account_name"
-        await update.message.reply_text("👤 Enter your account name:")
-    elif state == "account_name":
-        acc_name = update.message.text.strip()
-        user_data["account"] = {
-            "bank": context.user_data["bank_name"],
-            "number": context.user_data["account_number"],
-            "name": acc_name
-        }
-        update_user(update.effective_user.id, user_data)
-        context.user_data.clear()
-        await update.message.reply_text("✅ Account saved successfully!")
+async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["number"] = update.message.text
+    await update.message.reply_text("🧾 Enter your account name:")
+    return ACCOUNT_NAME
+
+async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    user["account"] = {
+        "bank": context.user_data["bank"],
+        "number": context.user_data["number"],
+        "name": update.message.text
+    }
+    update_user(user_id, user)
+    await update.message.reply_text("✅ Account info saved.")
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Canceled.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
 
 # Referral
 async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,30 +224,31 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # Withdrawals
+WITHDRAW_AMOUNT = 0
+WITHDRAW = range(1)
+
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("💸 Enter the amount to withdraw (min ₦1000):")
-    return 1
+    await update.message.reply_text("💸 How much would you like to withdraw?")
+    return WITHDRAW
 
-async def receive_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    amount = int(update.message.text)
+async def withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user_data = get_user(user_id)
-
-    if amount > user_data["balance"]:
-        await update.message.reply_text("❌ Insufficient balance.")
-    elif amount < 1000:
-        await update.message.reply_text("❌ Minimum withdrawal is ₦1000.")
-    elif not user_data.get("account"):
-        await update.message.reply_text("❌ Set your account details first using '🏦 Set Account'.")
-    else:
-        user_data["balance"] -= amount
-        user_data["withdrawals"].append({
-            "amount": amount,
-            "date": datetime.utcnow().strftime("%Y-%m-%d")
-        })
-        update_user(user_id, user_data)
-        await update.message.reply_text("✅ Withdrawal request submitted!")
-
+    user = get_user(user_id)
+    try:
+        amount = int(update.message.text)
+        if amount < 1000:
+            await update.message.reply_text("❌ Minimum withdrawal is ₦1000")
+        elif amount > user.get("balance", 0):
+            await update.message.reply_text("❌ Insufficient balance")
+        else:
+            user["balance"] -= amount
+            user["withdrawals"] = user.get("withdrawals", []) + [
+                {"amount": amount, "timestamp": datetime.utcnow().isoformat()}
+            ]
+            update_user(user_id, user)
+            await update.message.reply_text("✅ Withdrawal request submitted.")
+    except ValueError:
+        await update.message.reply_text("❌ Enter a valid number")
     return ConversationHandler.END
 
 async def withdrawal_records(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -300,10 +303,10 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("play", play))
+    #app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(play, pattern="^/play$"))
+    app.add_handler(CallbackQueryHandler(play, pattern="^play$"))
     app.add_handler(MessageHandler(filters.Regex("💰 Balance"), balance))
     app.add_handler(MessageHandler(filters.Regex("📝 Tasks"), tasks))
     app.add_handler(MessageHandler(filters.Regex("🏦 Set Account"), set_account))
@@ -320,15 +323,21 @@ def main():
         fallbacks=[]
     ))
 
-    app.add_handler(MessageHandler(filters.TEXT & filters.ALL, handle_account_input))
-    
-    app.add_handler(ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("💸 Withdraw"), withdraw)],
+    withdraw_conv = ConversationHandler(
+        entry_points=[CommandHandler("withdraw", withdraw)],
+        states={WITHDRAW: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)]},
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+
+    account_conv = ConversationHandler(
+        entry_points=[CommandHandler("set_account", set_account)],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw)]
+            ACCOUNT_BANK: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_bank)],
+            ACCOUNT_NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_number)],
+            ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
         },
-        fallbacks=[]
-    ))
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
 
     print("✅ Bot running...")
     app.run_polling()

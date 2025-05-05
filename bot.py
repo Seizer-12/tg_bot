@@ -339,6 +339,9 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)]
     )
 
+    app.add_handler(withdraw_conv)
+    app.add_handler(account_conv)
+
     print("✅ Bot running...")
     app.run_polling()
 

@@ -11,7 +11,7 @@ from telegram.ext import (
     ContextTypes, filters, ConversationHandler
 )
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
 BOT_USERNAME = "UtilizersBot"

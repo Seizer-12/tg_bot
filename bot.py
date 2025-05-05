@@ -7,10 +7,11 @@ from datetime import datetime
 import urllib.parse
 from telegram.constants import ParseMode
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+    Application, ConversationHandler, ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
+
 
 load_dotenv()
 
@@ -122,131 +123,146 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!")
 
 
-# --- Verify Daily Tasks ---
-async def verify_daily_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    try:
-        chat_member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if chat_member.status not in ["member", "administrator", "creator"]:
-            raise Exception("Not a member")
-    except Exception:
-        await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
-        return
-
-    await query.edit_message_text("📸 Please upload screenshots to verify task completion.")
-    context.user_data["awaiting_verification"] = True
-
-# --- Handle Verification Images ---
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    reply_keyboard = [
-        [ KeyboardButton("/play") ]
-    ]
-    markup = ReplyKeyboardMarkup(
-        reply_keyboard,
-        resize_keyboard=True,      # make buttons fit nicely
-        one_time_keyboard=False    # keep the keyboard up until user dismisses
-    )
-    #keyboard = [[InlineKeyboardButton("Menu", callback_data="play")]]
-
-    if context.user_data.get("awaiting_verification"):
-        if not has_claimed_today(user_data, "task_points"):
-            user_data["points"] = user_data.get("points", 0) + 30
-            mark_claimed_today(user_data, "task_points")
-            user_data["verified"] = True
-            update_user(user_id, user_data)
-            await update.message.reply_text("✅ Screenshot received. You have been awarded 30 points.", reply_markup=markup)
-        else:
-            await update.message.reply_text("✅ Screenshot received. You've already claimed task points for today.", reply_markup=markup)
-        context.user_data["awaiting_verification"] = False
-
-
-# --- Game Menu ---
+# COMMAND: /play
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user_data = get_user(user_id)
+    user = get_user(user_id)
 
-    keyboard = [
-        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
-        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
-        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
-        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("✅ Verify Daily Task Completion", callback_data="verify_daily_tasks")],
-        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
-        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Welcome utilizer! Use the menu below to explore:", reply_markup=reply_markup)
+    if not user.get("verified") or not user.get("tasks_completed"):
+        await update.message.reply_text("❌ You must be verified and complete tasks before accessing the menu.")
+        return
 
-# --- Menu Handlers ---
-async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    user_data = get_user(user_id)
-    data = query.data
+    await update.message.reply_text(
+        "Welcome! Choose a command below:\n\n"
+        "➡️ balance - Check your balance\n"
+        "➡️ tasks - Complete tasks for ₦50\n"
+        "➡️ set_account - Set your account info\n"
+        "➡️ referral - See your referral link and count\n"
+        "➡️ withdraw - Request a withdrawal\n"
+        "➡️ withdrawals - View withdrawal records\n"
+        "➡️ level - See your level"
+    )
 
-    if data == "menu_points":
-        text = f"💰 Your current points: {user_data.get('points', 0)}"
-    elif data == "menu_referral":
-        ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-        count = user_data.get("referrals", 0)
-        text = f"👥 Your referral link:\n{ref_link}\n\nTotal referrals: {count}"
-    elif data == "menu_position":
-        all_users = load_data()
-        sorted_users = sorted(all_users.items(), key=lambda x: x[1].get("points", 0), reverse=True)
-        position = next((i for i, (uid, _) in enumerate(sorted_users, 1) if uid == str(user_id)), None)
-        if position is not None:
-            rank = position + 1064
-            text = f"🏆 Your leaderboard position: {rank} \n\nYou could be 1 of 1,000 lucky members picked to be a verified tester and earn $50 every 2 weeks, no payment needed! \n\nEarn more points to rank up!"
-        else:
-            text = "❌ Could not determine your position."
-    elif data == "menu_tasks":
-        bot_link = "https://t.me/UtilizersBot"
-        task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
-        post_text = f"I just joined the Utilizers, and you should too! \n\nGet picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n\nAct fast, spots are limited!\n\n{bot_link}"
-        encoded_text = urllib.parse.quote(post_text)
-        task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
-        task_link3 = f"https://wa.me/?text={encoded_text}"
+# balance
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user(update.effective_user.id)
+    bal = user.get("balance", 0)
+    await update.message.reply_text(f"💰 Your balance: ₦{bal}")
 
-        message = (
-            f"📝 Follow <a href='{task_link1}'>Utilizer01</a>\n\n"
-            f"📝 <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
-            f"📝 <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>"
-        )
-
-        await query.message.reply_text(message, parse_mode=ParseMode.HTML)
-
-        #text = f"📝 Follow Utilizer01 {task_link1} \n\n 📝 Post on X (fka Twitter) {task_link2} \n\n 📝 Share to 5 whatsapp group and status {task_link3}"
-    elif data == "menu_bonus":
-        if not has_claimed_today(user_data, "bonus_points"):
-            user_data["points"] = user_data.get("points", 0) + 5
-            mark_claimed_today(user_data, "bonus_points")
-            update_user(user_id, user_data)
-            text = "🎁 You claimed your 5 daily bonus points!"
-        else:
-            text = "❌ You've already claimed today's bonus. Come back tomorrow."
-    elif data == "menu_ambassador":
-        text = "🚀 To become an Ambassador, you must have the following... \n 1. Must have invited 50 members. \n 2. Must have above 500 points"
+# tasks
+async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    if not user.get("tasks_completed"):
+        user["tasks_completed"] = True
+        user["balance"] = user.get("balance", 0) + 50
+        user["earnings"] = user.get("earnings", 0) + 50
+        update_user(user_id, user)
+        await update.message.reply_text("✅ Tasks completed. ₦50 credited!")
     else:
-        text = "Unknown command."
+        await update.message.reply_text("✔️ You have already completed your tasks.")
 
-    keyboard = [
-        [InlineKeyboardButton("📊 Points Balance", callback_data="menu_points")],
-        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
-        [InlineKeyboardButton("🏆 Position", callback_data="menu_position")],
-        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
-        [InlineKeyboardButton("✅ Verify Task Completion", callback_data="verify_daily_tasks")],
-        [InlineKeyboardButton("🎁 Bonus Daily Points", callback_data="menu_bonus")],
-        [InlineKeyboardButton("🚀 Upgrade to Ambassador", callback_data="menu_ambassador")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup)
+# Referral
+async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    referrals = user.get("referrals", [])
+    link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+    await update.message.reply_text(
+        f"👥 Your referral link: {link}\nTotal referrals: {len(referrals)}"
+    )
+
+# Level
+async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user(update.effective_user.id)
+    referrals = len(user.get("referrals", []))
+    earnings = user.get("earnings", 0)
+    level = "Level 1 (Novice)"
+    if referrals >= 100 and earnings >= 10000:
+        level = "Level 5 (Guru)"
+    elif referrals >= 75 and earnings >= 7500:
+        level = "Level 4 (Master)"
+    elif referrals >= 50 and earnings >= 5000:
+        level = "Level 3 (Pro)"
+    elif referrals >= 20 and earnings >= 2500:
+        level = "Level 2 (Amateur)"
+
+    await update.message.reply_text(f"🔺 Your Level: {level}")
+
+# Withdrawal
+WITHDRAW_AMOUNT = 0
+WITHDRAW = range(1)
+
+async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("💸 How much would you like to withdraw?")
+    return WITHDRAW
+
+async def withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    try:
+        amount = int(update.message.text)
+        if amount < 1000:
+            await update.message.reply_text("❌ Minimum withdrawal is ₦1000")
+        elif amount > user.get("balance", 0):
+            await update.message.reply_text("❌ Insufficient balance")
+        else:
+            user["balance"] -= amount
+            user["withdrawals"] = user.get("withdrawals", []) + [
+                {"amount": amount, "timestamp": datetime.utcnow().isoformat()}
+            ]
+            update_user(user_id, user)
+            await update.message.reply_text("✅ Withdrawal request submitted.")
+    except ValueError:
+        await update.message.reply_text("❌ Enter a valid number")
+    return ConversationHandler.END
+
+# Withdrawal records
+async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user(update.effective_user.id)
+    records = user.get("withdrawals", [])
+    total = sum(r["amount"] for r in records)
+    text = f"📜 Total Earnings: ₦{user.get('earnings', 0)}\nWithdrawals:"
+    for r in records:
+        text += f"\n- ₦{r['amount']} on {r['timestamp'][:10]}"
+    await update.message.reply_text(text)
+
+# Account setting
+ACCOUNT_BANK, ACCOUNT_NUMBER, ACCOUNT_NAME = range(3)
+
+async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    markup = ReplyKeyboardMarkup([
+        ["Opay", "Palmpay"]
+    ], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("🏦 Choose your bank:", reply_markup=markup)
+    return ACCOUNT_BANK
+
+async def get_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["bank"] = update.message.text
+    await update.message.reply_text("🔢 Enter your account number:", reply_markup=ReplyKeyboardRemove())
+    return ACCOUNT_NUMBER
+
+async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["number"] = update.message.text
+    await update.message.reply_text("🧾 Enter your account name:")
+    return ACCOUNT_NAME
+
+async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    user["account"] = {
+        "bank": context.user_data["bank"],
+        "number": context.user_data["number"],
+        "name": update.message.text
+    }
+    update_user(user_id, user)
+    await update.message.reply_text("✅ Account info saved.")
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Canceled.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
 
 # --- Run Bot ---
 def main():
@@ -256,9 +272,34 @@ def main():
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(verify_daily_tasks, pattern="^verify_daily_tasks$"))
-    app.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_.*"))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    app.add_handler(CommandHandler("play", play))
+    app.add_handler(CommandHandler("balance", balance))
+    app.add_handler(CommandHandler("tasks", tasks))
+    app.add_handler(CommandHandler("referral", referral))
+    app.add_handler(CommandHandler("withdrawals", withdrawals))
+    app.add_handler(CommandHandler("level", level))
+
+
+    withdraw_conv = ConversationHandler(
+        entry_points=[CommandHandler("withdraw", withdraw)],
+        states={WITHDRAW: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)]},
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+
+    account_conv = ConversationHandler(
+        entry_points=[CommandHandler("set_account", set_account)],
+        states={
+            ACCOUNT_BANK: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_bank)],
+            ACCOUNT_NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_number)],
+            ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+
+    app.add_handler(withdraw_conv)
+    app.add_handler(account_conv)
+
 
     app.run_polling()
 

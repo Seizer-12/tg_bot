@@ -1,77 +1,83 @@
-# bot.py
-
-import os
 import json
-import logging
+import os
 from datetime import datetime
-import urllib.parse
-from telegram.constants import ParseMode
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram import (
+    Update, ReplyKeyboardMarkup, KeyboardButton
+)
 from telegram.ext import (
-    Application, ConversationHandler, ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    ContextTypes, filters, ConversationHandler
 )
 
-
-load_dotenv()
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = "YOUR_BOT_TOKEN"
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
 BOT_USERNAME = "UtilizersBot"
-
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 DATA_FILE = "user_data.json"
 
-# --- Utility Functions ---
+# --- Data Functions ---
 def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w") as f:
+            json.dump({}, f)
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
 
 def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f, indent=2)
 
 def get_user(user_id):
     data = load_data()
-    return data.get(str(user_id), {})
+    user_id = str(user_id)
+    if user_id not in data:
+        data[user_id] = {
+            "balance": 0,
+            "referrals": [],
+            "tasks_done": False,
+            "daily_bonus": "",
+            "account": {},
+            "withdrawals": [],
+            "verified": False,
+            "total_earned": 0
+        }
+        save_data(data)
+    return data[user_id]
 
-def update_user(user_id, user_info):
+def update_user(user_id, user_data):
     data = load_data()
-    data[str(user_id)] = user_info
+    data[str(user_id)] = user_data
     save_data(data)
 
-def has_claimed_today(user_info, field):
-    today = datetime.utcnow().date().isoformat()
-    return user_info.get(field, {}).get("date") == today
+# --- Menus ---
+def main_menu():
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("💰 Balance"), KeyboardButton("📝 Tasks")],
+            [KeyboardButton("🏦 Set Account"), KeyboardButton("👥 Referral")],
+            [KeyboardButton("💸 Withdraw"), KeyboardButton("📜 Withdrawals")],
+            [KeyboardButton("🏅 Level"), KeyboardButton("🎁 Daily Bonus")]
+        ],
+        resize_keyboard=True
+    )
 
-def mark_claimed_today(user_info, field):
-    today = datetime.utcnow().date().isoformat()
-    user_info[field] = {"date": today}
-
-# --- Start Command ---
+# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_data = get_user(user.id)
+    ref = context.args[0] if context.args else None
 
-    if "referral" not in user_data:
-        if context.args:
-            referrer_id = context.args[0]
-            if referrer_id != str(user.id):
-                referrer_data = get_user(referrer_id)
-                referrer_data["points"] = referrer_data.get("points", 0) + 25
-                referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
-                update_user(referrer_id, referrer_data)
-                user_data["referral"] = referrer_id
-                await update.message.reply_text(
-                    "🎯 You just referred a user and got 25 Points...",
-                    reply_markup=reply_markup
-                )
+    user = update.effective_user
+    user_data = get_user(user.id)
+
+    if ref and ref != str(user.id):
+        referrer = get_user(ref)
+        if user.id not in referrer['referrals']:
+            referrer['referrals'].append(user.id)
+            update_user(ref, referrer)
+
 
     update_user(user.id, user_data)
 
@@ -118,194 +124,210 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user_data = get_user(user_id)
     user_data["verified_user"] = True
-    user_data["tasks_completed"] = True
     update_user(user_id, user_data)
 
     await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!")
+    keyboard = [[InlineKeyboardButton("Play", callback_data="play")]]
 
 
-# COMMAND: /play
-@dp.message_handler(commands=["play"])
-async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    user_data = get_user(user_id)
+async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_data = get_user(user.id)
+    user_data['verified'] = True
+    update_user(user.id, user_data)
 
-    if not user_data.get("verified"):
-        await update.message.reply_text("❌ You need to verify before playing.")
-        return
-
-    keyboard = [
-        [KeyboardButton("📊 Balance"), KeyboardButton("📝 Tasks")],
-        [KeyboardButton("🏦 Set Account"), KeyboardButton("👥 Referral")],
-        [KeyboardButton("💸 Withdraw"), KeyboardButton("📁 Withdrawals")],
-        [KeyboardButton("🎯 Level")]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "Welcome to the Utilizers Bot Menu! Choose an option below:",
-        reply_markup=reply_markup
+        "🎮 Welcome! Use the buttons below to navigate.",
+        reply_markup=main_menu()
     )
 
-# balance
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
-    bal = user.get("balance", 0)
-    await update.message.reply_text(f"💰 Your balance: ₦{bal}")
+    user_data = get_user(update.effective_user.id)
+    await update.message.reply_text(f"💰 Your balance: ₦{user_data['balance']}")
 
-# tasks
+# Task verification (asks for screenshot)
 async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
-    if not user.get("tasks_completed"):
-        user["tasks_completed"] = True
-        user["balance"] = user.get("balance", 0) + 50
-        user["earnings"] = user.get("earnings", 0) + 50
-        update_user(user_id, user)
-        await update.message.reply_text("✅ Tasks completed. ₦50 credited!")
+    await update.message.reply_text(
+        "📝 Complete these tasks:\n"
+        "1. Follow https://t.me/UtilizersChannel\n"
+        "2. Post: 'Join Utilizers to earn ₦50 every 2 weeks. Try now!'\n"
+        "3. Share the bot to 5 WhatsApp groups\n\n"
+        "✅ After completing, send a screenshot for verification."
+    )
+    return 1
+
+async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_data = get_user(user.id)
+
+    if not user_data["tasks_done"]:
+        user_data["tasks_done"] = True
+        user_data["balance"] += 50
+        user_data["total_earned"] += 50
+        update_user(user.id, user_data)
+        await update.message.reply_text("✅ Screenshot received. ₦50 has been added to your balance.")
     else:
-        await update.message.reply_text("✔️ You have already completed your tasks.")
+        await update.message.reply_text("✅ You've already completed the tasks.")
+    return ConversationHandler.END
+
+# Set Account
+async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🏦 Enter your bank name (OPay or Palmpay):")
+    return 1
+
+async def receive_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["bank"] = update.message.text
+    await update.message.reply_text("🔢 Enter your account number:")
+    return 2
+
+async def receive_account_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["acc_number"] = update.message.text
+    await update.message.reply_text("👤 Enter your account name:")
+    return 3
+
+async def receive_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_data = get_user(user_id)
+
+    user_data["account"] = {
+        "bank": context.user_data["bank"],
+        "number": context.user_data["acc_number"],
+        "name": update.message.text
+    }
+    update_user(user_id, user_data)
+    await update.message.reply_text("✅ Account details saved.")
+    return ConversationHandler.END
 
 # Referral
 async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
-    referrals = user.get("referrals", [])
-    link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+    user = update.effective_user
+    user_data = get_user(user.id)
+    count = 0
+    for ref_id in user_data["referrals"]:
+        ref_user = get_user(ref_id)
+        if ref_user["verified"] and ref_user["tasks_done"]:
+            count += 1
+    reward = count * 70
+    link = f"https://t.me/{context.bot.username}?start={user.id}"
     await update.message.reply_text(
-        f"👥 Your referral link: {link}\nTotal referrals: {len(referrals)}"
+        f"👥 Referrals: {count}\n💵 Earnings: ₦{reward}\n\n🔗 Referral Link:\n{link}"
     )
 
-# Level
-async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
-    referrals = len(user.get("referrals", []))
-    earnings = user.get("earnings", 0)
-    level = "Level 1 (Novice)"
-    if referrals >= 100 and earnings >= 10000:
-        level = "Level 5 (Guru)"
-    elif referrals >= 75 and earnings >= 7500:
-        level = "Level 4 (Master)"
-    elif referrals >= 50 and earnings >= 5000:
-        level = "Level 3 (Pro)"
-    elif referrals >= 20 and earnings >= 2500:
-        level = "Level 2 (Amateur)"
-
-    await update.message.reply_text(f"🔺 Your Level: {level}")
-
-# Withdrawal
-WITHDRAW_AMOUNT = 0
-WITHDRAW = range(1)
-
+# Withdrawals
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("💸 How much would you like to withdraw?")
-    return WITHDRAW
+    await update.message.reply_text("💸 Enter the amount to withdraw (min ₦1000):")
+    return 1
 
-async def withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def receive_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    amount = int(update.message.text)
     user_id = update.effective_user.id
-    user = get_user(user_id)
-    try:
-        amount = int(update.message.text)
-        if amount < 1000:
-            await update.message.reply_text("❌ Minimum withdrawal is ₦1000")
-        elif amount > user.get("balance", 0):
-            await update.message.reply_text("❌ Insufficient balance")
-        else:
-            user["balance"] -= amount
-            user["withdrawals"] = user.get("withdrawals", []) + [
-                {"amount": amount, "timestamp": datetime.utcnow().isoformat()}
-            ]
-            update_user(user_id, user)
-            await update.message.reply_text("✅ Withdrawal request submitted.")
-    except ValueError:
-        await update.message.reply_text("❌ Enter a valid number")
+    user_data = get_user(user_id)
+
+    if amount > user_data["balance"]:
+        await update.message.reply_text("❌ Insufficient balance.")
+    elif amount < 1000:
+        await update.message.reply_text("❌ Minimum withdrawal is ₦1000.")
+    elif not user_data.get("account"):
+        await update.message.reply_text("❌ Set your account details first using '🏦 Set Account'.")
+    else:
+        user_data["balance"] -= amount
+        user_data["withdrawals"].append({
+            "amount": amount,
+            "date": datetime.utcnow().strftime("%Y-%m-%d")
+        })
+        update_user(user_id, user_data)
+        await update.message.reply_text("✅ Withdrawal request submitted!")
+
     return ConversationHandler.END
 
-# Withdrawal records
-async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
-    records = user.get("withdrawals", [])
-    total = sum(r["amount"] for r in records)
-    text = f"📜 Total Earnings: ₦{user.get('earnings', 0)}\nWithdrawals:"
-    for r in records:
-        text += f"\n- ₦{r['amount']} on {r['timestamp'][:10]}"
-    await update.message.reply_text(text)
+async def withdrawal_records(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = get_user(update.effective_user.id)
+    history = user_data["withdrawals"]
+    total = user_data["total_earned"]
+    if not history:
+        await update.message.reply_text("📜 No withdrawals yet.")
+    else:
+        msg = "📜 Withdrawal Records:\n"
+        for h in history:
+            msg += f"• ₦{h['amount']} on {h['date']}\n"
+        msg += f"\n💰 Total Earned: ₦{total}"
+        await update.message.reply_text(msg)
 
+# Levels
+async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = get_user(update.effective_user.id)
+    count = 0
+    for ref_id in user_data["referrals"]:
+        ref_user = get_user(ref_id)
+        if ref_user["verified"] and ref_user["tasks_done"]:
+            count += 1
 
-# Account setting
-ACCOUNT_BANK, ACCOUNT_NUMBER, ACCOUNT_NAME = range(3)
+    total = user_data["total_earned"]
+    level = "Novice"
+    if count >= 100 and total >= 10000:
+        level = "Guru"
+    elif count >= 75 and total >= 7500:
+        level = "Master"
+    elif count >= 50 and total >= 5000:
+        level = "Pro"
+    elif count >= 20 and total >= 2500:
+        level = "Amateur"
 
-async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    markup = ReplyKeyboardMarkup([
-        ["Opay", "Palmpay"]
-    ], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("🏦 Choose your bank:", reply_markup=markup)
-    return ACCOUNT_BANK
+    await update.message.reply_text(f"🏅 Your Level: {level}")
 
-async def get_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["bank"] = update.message.text
-    await update.message.reply_text("🔢 Enter your account number:", reply_markup=ReplyKeyboardRemove())
-    return ACCOUNT_NUMBER
+# Daily Bonus
+async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = get_user(update.effective_user.id)
+    if user_data["daily_bonus"] == datetime.utcnow().strftime("%Y-%m-%d"):
+        await update.message.reply_text("❌ Bonus already claimed today.")
+    else:
+        user_data["balance"] += 25
+        user_data["total_earned"] += 25
+        user_data["daily_bonus"] = datetime.utcnow().strftime("%Y-%m-%d")
+        update_user(update.effective_user.id, user_data)
+        await update.message.reply_text("🎁 You received ₦25 daily bonus!")
 
-async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["number"] = update.message.text
-    await update.message.reply_text("🧾 Enter your account name:")
-    return ACCOUNT_NAME
-
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
-    user["account"] = {
-        "bank": context.user_data["bank"],
-        "number": context.user_data["number"],
-        "name": update.message.text
-    }
-    update_user(user_id, user)
-    await update.message.reply_text("✅ Account info saved.")
-    return ConversationHandler.END
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Canceled.", reply_markup=ReplyKeyboardRemove())
-    return ConversationHandler.END
-
-
-# --- Run Bot ---
+# --- App Setup ---
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CommandHandler("play", play))
-    app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
+    app.add_handler(MessageHandler(filters.Regex("💰 Balance"), balance))
+    app.add_handler(MessageHandler(filters.Regex("📝 Tasks"), tasks))
+    app.add_handler(MessageHandler(filters.Regex("🏦 Set Account"), set_account))
+    app.add_handler(MessageHandler(filters.Regex("👥 Referral"), referral))
+    app.add_handler(MessageHandler(filters.Regex("💸 Withdraw"), withdraw))
+    app.add_handler(MessageHandler(filters.Regex("📜 Withdrawals"), withdrawal_records))
+    app.add_handler(MessageHandler(filters.Regex("🏅 Level"), level))
+    app.add_handler(MessageHandler(filters.Regex("🎁 Daily Bonus"), daily_bonus))
 
-    app.add_handler(CommandHandler("play", play))
-    app.add_handler(CommandHandler("balance", balance))
-    app.add_handler(CommandHandler("tasks", tasks))
-    app.add_handler(CommandHandler("referral", referral))
-    app.add_handler(CommandHandler("withdrawals", withdrawals))
-    app.add_handler(CommandHandler("level", level))
+    # Conversations
+    app.add_handler(ConversationHandler(
+        entry_points=[MessageHandler(filters.PHOTO & ~filters.COMMAND, receive_screenshot)],
+        states={},
+        fallbacks=[]
+    ))
 
-
-    withdraw_conv = ConversationHandler(
-        entry_points=[CommandHandler("withdraw", withdraw)],
-        states={WITHDRAW: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)]},
-        fallbacks=[CommandHandler("cancel", cancel)]
-    )
-
-    account_conv = ConversationHandler(
-        entry_points=[CommandHandler("set_account", set_account)],
+    app.add_handler(ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("🏦 Set Account"), set_account)],
         states={
-            ACCOUNT_BANK: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_bank)],
-            ACCOUNT_NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_number)],
-            ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_bank)],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_account_number)],
+            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_account_name)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)]
-    )
+        fallbacks=[]
+    ))
 
-    app.add_handler(withdraw_conv)
-    app.add_handler(account_conv)
+    app.add_handler(ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("💸 Withdraw"), withdraw)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw)]
+        },
+        fallbacks=[]
+    ))
 
-
+    print("✅ Bot running...")
     app.run_polling()
 
 if __name__ == "__main__":

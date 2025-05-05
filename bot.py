@@ -303,7 +303,7 @@ def main():
     app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(play, pattern="^play$"))
+    app.add_handler(CallbackQueryHandler(play, pattern="^/play$"))
     app.add_handler(MessageHandler(filters.Regex("💰 Balance"), balance))
     app.add_handler(MessageHandler(filters.Regex("📝 Tasks"), tasks))
     app.add_handler(MessageHandler(filters.Regex("🏦 Set Account"), set_account))

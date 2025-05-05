@@ -8,7 +8,7 @@ from telegram import (
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    ContextTypes, filters, ConversationHandler
+    ContextTypes, filters, ConversationHandler, CallbackQueryHandler
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -293,6 +293,8 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
+    app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
+    app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
     app.add_handler(MessageHandler(filters.Regex("💰 Balance"), balance))
     app.add_handler(MessageHandler(filters.Regex("📝 Tasks"), tasks))
     app.add_handler(MessageHandler(filters.Regex("🏦 Set Account"), set_account))

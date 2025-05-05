@@ -125,23 +125,26 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # COMMAND: /play
-async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
+@dp.message_handler(commands=["play"])
+async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    user_data = get_user(user_id)
 
-    if not user.get("verified_user") or not user.get("tasks_completed"):
-        await update.message.reply_text("❌ You must be verified and complete tasks before accessing the menu.")
+    if not user_data.get("verified"):
+        await update.message.reply_text("❌ You need to verify before playing.")
         return
 
+    keyboard = [
+        [KeyboardButton("📊 Balance"), KeyboardButton("📝 Tasks")],
+        [KeyboardButton("🏦 Set Account"), KeyboardButton("👥 Referral")],
+        [KeyboardButton("💸 Withdraw"), KeyboardButton("📁 Withdrawals")],
+        [KeyboardButton("🎯 Level")]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "Welcome! Choose a command below:\n\n"
-        "➡️ balance - Check your balance\n"
-        "➡️ tasks - Complete tasks for ₦50\n"
-        "➡️ set_account - Set your account info\n"
-        "➡️ referral - See your referral link and count\n"
-        "➡️ withdraw - Request a withdrawal\n"
-        "➡️ withdrawals - View withdrawal records\n"
-        "➡️ level - See your level"
+        "Welcome to the Utilizers Bot Menu! Choose an option below:",
+        reply_markup=reply_markup
     )
 
 # balance

@@ -118,6 +118,7 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user_data = get_user(user_id)
     user_data["verified_user"] = True
+    user_data["tasks_completed"] = True
     update_user(user_id, user_data)
 
     await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!")
@@ -128,7 +129,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = get_user(user_id)
 
-    if not user.get("verified") or not user.get("tasks_completed"):
+    if not user.get("verified_user") or not user.get("tasks_completed"):
         await update.message.reply_text("❌ You must be verified and complete tasks before accessing the menu.")
         return
 
@@ -226,6 +227,7 @@ async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for r in records:
         text += f"\n- ₦{r['amount']} on {r['timestamp'][:10]}"
     await update.message.reply_text(text)
+
 
 # Account setting
 ACCOUNT_BANK, ACCOUNT_NUMBER, ACCOUNT_NAME = range(3)

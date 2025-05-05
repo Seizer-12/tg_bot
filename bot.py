@@ -126,8 +126,8 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["verified_user"] = True
     update_user(user_id, user_data)
 
-    keyboard = [[InlineKeyboardButton("Play", callback_data="play")]]
-    await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!", reply_markup=InlineKeyboardMarkup(keyboard))
+    #keyboard = [[InlineKeyboardButton("Play", callback_data="play")]]
+    await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!")
 
 
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -303,10 +303,10 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    #app.add_handler(CommandHandler("play", play))
+    app.add_handler(CommandHandler("play", play))
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
-    app.add_handler(CallbackQueryHandler(play, pattern="^play$"))
+
     app.add_handler(MessageHandler(filters.Regex("💰 Balance"), balance))
     app.add_handler(MessageHandler(filters.Regex("📝 Tasks"), tasks))
     app.add_handler(MessageHandler(filters.Regex("🏦 Set Account"), set_account))

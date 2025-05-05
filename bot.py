@@ -319,16 +319,8 @@ def main():
         fallbacks=[]
     ))
 
-    app.add_handler(ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("🏦 Set Account"), set_account)],
-        states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_bank)],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_account_number)],
-            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_account_name)],
-        },
-        fallbacks=[]
-    ))
-
+    app.add_handler(MessageHandler(filters.TEXT & filters.ALL, handle_account_input))
+    
     app.add_handler(ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("💸 Withdraw"), withdraw)],
         states={

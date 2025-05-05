@@ -126,8 +126,8 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["verified_user"] = True
     update_user(user_id, user_data)
 
-    await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!")
     keyboard = [[InlineKeyboardButton("Play", callback_data="play")]]
+    await query.edit_message_text("✅ You're verified. \n\nTap or type /play to begin!", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,7 +137,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_user(user.id, user_data)
 
     await update.message.reply_text(
-        "🎮 Welcome! Use the buttons below to navigate.",
+        "Welcome! Use the buttons below to navigate.",
         reply_markup=main_menu()
     )
 
@@ -172,31 +172,39 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 # Set Account
 async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏦 Enter your bank name (OPay or Palmpay):")
-    return 1
+    await update.message.reply_text("🏦 Enter your bank name (Opay or Palmpay):")
+    context.user_data["awaiting"] = "bank_name"
 
-async def receive_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["bank"] = update.message.text
-    await update.message.reply_text("🔢 Enter your account number:")
-    return 2
+async def handle_account_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = get_user(update.effective_user.id)
+    state = context.user_data.get("awaiting")
 
-async def receive_account_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["acc_number"] = update.message.text
-    await update.message.reply_text("👤 Enter your account name:")
-    return 3
-
-async def receive_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-
-    user_data["account"] = {
-        "bank": context.user_data["bank"],
-        "number": context.user_data["acc_number"],
-        "name": update.message.text
-    }
-    update_user(user_id, user_data)
-    await update.message.reply_text("✅ Account details saved.")
-    return ConversationHandler.END
+    if state == "bank_name":
+        bank = update.message.text.strip().lower()
+        if bank not in ["opay", "palmpay"]:
+            await update.message.reply_text("❌ Invalid bank. Choose Opay or Palmpay.")
+            return
+        context.user_data["bank_name"] = bank
+        context.user_data["awaiting"] = "account_number"
+        await update.message.reply_text("🔢 Enter your account number:")
+    elif state == "account_number":
+        acc_num = update.message.text.strip()
+        if not acc_num.isdigit() or len(acc_num) != 10:
+            await update.message.reply_text("❌ Invalid account number. Must be 10 digits.")
+            return
+        context.user_data["account_number"] = acc_num
+        context.user_data["awaiting"] = "account_name"
+        await update.message.reply_text("👤 Enter your account name:")
+    elif state == "account_name":
+        acc_name = update.message.text.strip()
+        user_data["account"] = {
+            "bank": context.user_data["bank_name"],
+            "number": context.user_data["account_number"],
+            "name": acc_name
+        }
+        update_user(update.effective_user.id, user_data)
+        context.user_data.clear()
+        await update.message.reply_text("✅ Account saved successfully!")
 
 # Referral
 async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):

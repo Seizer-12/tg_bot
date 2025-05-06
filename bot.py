@@ -18,7 +18,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
 BOT_USERNAME = "UtilizersBot"
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Add this to your .env file
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
 # Conversion rate (points to Naira)
 POINTS_TO_NAIRA = 1  # 1 point = 1 Naira
@@ -83,6 +83,18 @@ def calculate_level(user_data):
     else:
         return ("Novice", 1)
 
+def get_main_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💰 Balance", callback_data="menu_balance")],
+        [InlineKeyboardButton("📝 Tasks", callback_data="menu_tasks")],
+        [InlineKeyboardButton("🏦 Set Account", callback_data="menu_setaccount")],
+        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral")],
+        [InlineKeyboardButton("💸 Withdraw", callback_data="menu_withdraw")],
+        [InlineKeyboardButton("📊 Withdrawals", callback_data="menu_withdrawals")],
+        [InlineKeyboardButton("🏆 Level", callback_data="menu_level")],
+        [InlineKeyboardButton("🎁 Daily Bonus", callback_data="menu_daily_bonus")]
+    ])
+
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -97,9 +109,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
                 user_data["referral"] = referrer_id
-                await update.message.reply_text(
-                    "🎯 You just referred a user and got 25 Points..."
-                )
+                await update.message.reply_text("🎯 You just referred a user and got 25 Points...")
 
     update_user(user.id, user_data)
 
@@ -152,97 +162,173 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         "✅ You're verified and have earned ₦50 for completing the tasks!\n\n"
-        "Use the following commands:\n"
-        "/balance - Check your balance\n"
-        "/tasks - View available tasks\n"
-        "/setaccount - Set your payment details\n"
-        "/referral - Get your referral link\n"
-        "/withdraw - Request a withdrawal\n"
-        "/withdrawals - View your withdrawal history\n"
-        "/level - Check your current level"
+        "Use the menu below to explore:",
+        reply_markup=get_main_menu_keyboard()
     )
 
-# --- Command Handlers ---
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+# --- Menu Handlers ---
+async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
     user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    balance_naira = user_data.get("points", 0) * POINTS_TO_NAIRA
-    await update.message.reply_text(f"💰 Your current balance: ₦{balance_naira:,.2f}")
+    data = query.data
 
-async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
     if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
+        await query.edit_message_text("❌ Please complete verification first using /start")
         return
-    
-    bot_link = "https://t.me/UtilizersBot"
-    task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
-    post_text = f"I just joined the Utilizers, and you should too! \n\nGet picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n\nAct fast, spots are limited!\n\n{bot_link}"
-    encoded_text = urllib.parse.quote(post_text)
-    task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
-    task_link3 = f"https://wa.me/?text={encoded_text}"
 
-    message = (
-        f"📝 Available Tasks (Complete all to earn ₦50):\n\n"
-        f"1. Follow <a href='{task_link1}'>Utilizer01 on Twitter</a>\n\n"
-        f"2. <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
-        f"3. <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>\n\n"
-        "After completing all tasks, upload screenshots using /verifytasks"
-    )
+    if data == "menu_balance":
+        balance_naira = user_data.get("points", 0) * POINTS_TO_NAIRA
+        text = f"💰 Your current balance: ₦{balance_naira:,.2f}"
     
-    await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+    elif data == "menu_tasks":
+        bot_link = "https://t.me/UtilizersBot"
+        task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
+        post_text = f"I just joined the Utilizers, and you should too! \n\nGet picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n\nAct fast, spots are limited!\n\n{bot_link}"
+        encoded_text = urllib.parse.quote(post_text)
+        task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
+        task_link3 = f"https://wa.me/?text={encoded_text}"
 
-async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    # Check if user already has account details
-    if user_data.get("account_set"):
-        await update.message.reply_text(
-            f"Your current account details:\n"
-            f"Bank: {user_data.get('bank_name')}\n"
-            f"Account Number: {user_data.get('account_number')}\n"
-            f"Account Name: {user_data.get('account_name')}\n\n"
-            "To update, use /setaccount again."
+        text = (
+            f"📝 Available Tasks (Complete all to earn ₦50):\n\n"
+            f"1. Follow <a href='{task_link1}'>Utilizer01 on Twitter</a>\n\n"
+            f"2. <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
+            f"3. <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>\n\n"
+            "After completing all tasks, upload screenshots using /verifytasks"
         )
+    
+    elif data == "menu_setaccount":
+        if user_data.get("account_set"):
+            text = (
+                f"Your current account details:\n"
+                f"Bank: {user_data.get('bank_name')}\n"
+                f"Account Number: {user_data.get('account_number')}\n"
+                f"Account Name: {user_data.get('account_name')}\n\n"
+                "To update, please select your bank:"
+            )
+        else:
+            text = "Please select your bank:"
+        
+        keyboard = [
+            [InlineKeyboardButton("OPay", callback_data="bank_opay")],
+            [InlineKeyboardButton("PalmPay", callback_data="bank_palmpay")],
+            [InlineKeyboardButton("🔙 Back", callback_data="menu_back")]
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
     
-    # Create keyboard for bank selection
-    keyboard = [
-        [InlineKeyboardButton("OPay", callback_data="bank_opay")],
-        [InlineKeyboardButton("PalmPay", callback_data="bank_palmpay")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    elif data == "menu_referral":
+        ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        count = user_data.get("referrals", 0)
+        text = (
+            f"👥 Your referral link:\n{ref_link}\n\n"
+            f"Total referrals: {count}\n"
+            f"Earn ₦70 for each successful referral (when they complete initial tasks)"
+        )
     
-    await update.message.reply_text(
-        "Please select your bank:",
-        reply_markup=reply_markup
-    )
-    context.user_data["awaiting_bank"] = True
+    elif data == "menu_withdraw":
+        if not user_data.get("account_set"):
+            text = "❌ Please set your account details first using the 'Set Account' option"
+        else:
+            balance_naira = user_data.get("points", 0) * POINTS_TO_NAIRA
+            if balance_naira < 1000:
+                text = f"❌ Minimum withdrawal is ₦1,000. Your current balance is ₦{balance_naira:,.2f}"
+            else:
+                text = (
+                    f"💰 Your current balance: ₦{balance_naira:,.2f}\n"
+                    f"Minimum withdrawal: ₦1,000\n\n"
+                    "Please enter the amount you want to withdraw:"
+                )
+                context.user_data["awaiting_withdrawal_amount"] = True
+    
+    elif data == "menu_withdrawals":
+        withdrawals = load_withdrawals()
+        user_withdrawals = [w for w in withdrawals.values() if w["user_id"] == str(user_id)]
+        
+        if not user_withdrawals:
+            text = "You have no withdrawal records yet."
+        else:
+            total_withdrawn = user_data.get("total_withdrawn", 0)
+            total_earned = user_data.get("total_earned", 0)
+            
+            text = "📝 Your Withdrawal History:\n\n"
+            for w in user_withdrawals:
+                date = datetime.fromisoformat(w["date"]).strftime("%Y-%m-%d %H:%M")
+                text += (
+                    f"💰 Amount: ₦{w['amount']:,.2f}\n"
+                    f"📅 Date: {date}\n"
+                    f"🔄 Status: {w['status']}\n"
+                    f"🏦 Bank: {w['account_details']['bank']}\n"
+                    f"🔢 Account: {w['account_details']['account_number']}\n\n"
+                )
+            
+            text += f"💵 Total Withdrawn: ₦{total_withdrawn:,.2f}\n"
+            text += f"💸 Total Earned: ₦{total_earned:,.2f}"
+    
+    elif data == "menu_level":
+        level_name, level_num = calculate_level(user_data)
+        referrals = user_data.get("referrals", 0)
+        total_earned = user_data.get("total_earned", 0)
+        
+        text = (
+            f"🏆 Your Level: {level_name} (Level {level_num})\n\n"
+            f"👥 Referrals: {referrals}\n"
+            f"💰 Total Earned: ₦{total_earned:,.2f}\n\n"
+        )
+        
+        # Show next level requirements
+        if level_num == 1:
+            text += "Next Level (Amateur) Requirements:\n- 20 referrals\n- ₦2,500 total earned"
+        elif level_num == 2:
+            text += "Next Level (Pro) Requirements:\n- 50 referrals\n- ₦5,000 total earned"
+        elif level_num == 3:
+            text += "Next Level (Master) Requirements:\n- 75 referrals\n- ₦7,500 total earned"
+        elif level_num == 4:
+            text += "Next Level (Guru) Requirements:\n- 100 referrals\n- ₦10,000 total earned"
+        else:
+            text += "You've reached the highest level!"
+    
+    elif data == "menu_daily_bonus":
+        if not has_claimed_today(user_data, "daily_bonus"):
+            bonus_amount = 25
+            user_data["points"] = user_data.get("points", 0) + bonus_amount
+            mark_claimed_today(user_data, "daily_bonus")
+            update_user(user_id, user_data)
+            text = f"🎁 You claimed your daily ₦{bonus_amount} bonus!"
+        else:
+            text = "❌ You've already claimed today's bonus. Come back tomorrow."
+    
+    elif data == "menu_back":
+        await query.edit_message_text("Main menu:", reply_markup=get_main_menu_keyboard())
+        return
+    
+    else:
+        text = "Unknown command."
 
+    await query.edit_message_text(text, reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.HTML)
+
+# --- Bank Selection ---
 async def bank_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     
-    bank = "OPay" if query.data == "bank_opay" else "PalmPay"
-    context.user_data["selected_bank"] = bank
-    context.user_data["awaiting_bank"] = False
-    context.user_data["awaiting_account_number"] = True
+    if query.data == "bank_opay":
+        bank = "OPay"
+    elif query.data == "bank_palmpay":
+        bank = "PalmPay"
+    else:
+        return
     
-    await query.edit_message_text(f"You selected {bank}. Now please send your account number.")
+    context.user_data["selected_bank"] = bank
+    await query.edit_message_text(
+        f"You selected {bank}. Now please send your account number:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="menu_setaccount")]])
+    )
+    context.user_data["awaiting_account_number"] = True
 
+# --- Handle Account Number ---
 async def handle_account_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     account_number = update.message.text
@@ -258,13 +344,25 @@ async def handle_account_number(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data["awaiting_account_number"] = False
     context.user_data["awaiting_account_name"] = True
     
-    await update.message.reply_text("Now please send your account name as it appears on your bank records.")
+    await update.message.reply_text(
+        "Now please send your account name as it appears on your bank records:",
+        reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🔙 Back")]], resize_keyboard=True)
+    )
 
+# --- Handle Account Name ---
 async def handle_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     account_name = update.message.text
     
     if not context.user_data.get("awaiting_account_name"):
+        return
+    
+    if account_name == "🔙 Back":
+        await update.message.reply_text(
+            "Account setup cancelled.",
+            reply_markup=get_main_menu_keyboard()
+        )
+        context.user_data.clear()
         return
     
     if len(account_name.strip()) < 2:
@@ -286,50 +384,11 @@ async def handle_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"✅ Account details saved successfully!\n\n"
         f"Bank: {user_data['bank_name']}\n"
         f"Account Number: {user_data['account_number']}\n"
-        f"Account Name: {user_data['account_name']}"
+        f"Account Name: {user_data['account_name']}",
+        reply_markup=get_main_menu_keyboard()
     )
 
-async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-    count = user_data.get("referrals", 0)
-    await update.message.reply_text(
-        f"👥 Your referral link:\n{ref_link}\n\n"
-        f"Total referrals: {count}\n"
-        f"Earn ₦70 for each successful referral (when they complete initial tasks)"
-    )
-
-async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    if not user_data.get("account_set"):
-        await update.message.reply_text("❌ Please set your account details first using /setaccount")
-        return
-    
-    balance_naira = user_data.get("points", 0) * POINTS_TO_NAIRA
-    
-    if balance_naira < 1000:
-        await update.message.reply_text(f"❌ Minimum withdrawal is ₦1,000. Your current balance is ₦{balance_naira:,.2f}")
-        return
-    
-    await update.message.reply_text(
-        f"💰 Your current balance: ₦{balance_naira:,.2f}\n"
-        f"Minimum withdrawal: ₦1,000\n\n"
-        "Please enter the amount you want to withdraw:"
-    )
-    context.user_data["awaiting_withdrawal_amount"] = True
-
+# --- Handle Withdrawal Amount ---
 async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     amount_text = update.message.text
@@ -390,8 +449,8 @@ async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT
         
         await update.message.reply_text(
             f"✅ Withdrawal request of ₦{amount:,.2f} submitted successfully!\n\n"
-            "Your request will be processed within 24 hours.\n"
-            "Use /withdrawals to check your withdrawal history."
+            "Your request will be processed within 24 hours.",
+            reply_markup=get_main_menu_keyboard()
         )
         
         context.user_data["awaiting_withdrawal_amount"] = False
@@ -399,94 +458,22 @@ async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT
     except ValueError:
         await update.message.reply_text("❌ Invalid amount. Please enter a valid number.")
 
-async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    withdrawals = load_withdrawals()
-    user_withdrawals = [w for w in withdrawals.values() if w["user_id"] == str(user_id)]
-    
-    if not user_withdrawals:
-        await update.message.reply_text("You have no withdrawal records yet.")
-        return
-    
-    total_withdrawn = user_data.get("total_withdrawn", 0)
-    total_earned = user_data.get("total_earned", 0)
-    
-    message = "📝 Your Withdrawal History:\n\n"
-    for w in user_withdrawals:
-        date = datetime.fromisoformat(w["date"]).strftime("%Y-%m-%d %H:%M")
-        message += (
-            f"💰 Amount: ₦{w['amount']:,.2f}\n"
-            f"📅 Date: {date}\n"
-            f"🔄 Status: {w['status']}\n"
-            f"🏦 Bank: {w['account_details']['bank']}\n"
-            f"🔢 Account: {w['account_details']['account_number']}\n\n"
-        )
-    
-    message += f"💵 Total Withdrawn: ₦{total_withdrawn:,.2f}\n"
-    message += f"💸 Total Earned: ₦{total_earned:,.2f}"
-    
-    await update.message.reply_text(message)
-
-async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data.get("verified_user"):
-        await update.message.reply_text("❌ Please complete verification first using /start")
-        return
-    
-    level_name, level_num = calculate_level(user_data)
-    referrals = user_data.get("referrals", 0)
-    total_earned = user_data.get("total_earned", 0)
-    
-    message = (
-        f"🏆 Your Level: {level_name} (Level {level_num})\n\n"
-        f"👥 Referrals: {referrals}\n"
-        f"💰 Total Earned: ₦{total_earned:,.2f}\n\n"
-    )
-    
-    # Show next level requirements
-    if level_num == 1:
-        message += "Next Level (Amateur) Requirements:\n- 20 referrals\n- ₦2,500 total earned"
-    elif level_num == 2:
-        message += "Next Level (Pro) Requirements:\n- 50 referrals\n- ₦5,000 total earned"
-    elif level_num == 3:
-        message += "Next Level (Master) Requirements:\n- 75 referrals\n- ₦7,500 total earned"
-    elif level_num == 4:
-        message += "Next Level (Guru) Requirements:\n- 100 referrals\n- ₦10,000 total earned"
-    else:
-        message += "You've reached the highest level!"
-    
-    await update.message.reply_text(message)
-
 # --- Run Bot ---
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Command handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("balance", balance))
-    app.add_handler(CommandHandler("tasks", tasks))
-    app.add_handler(CommandHandler("setaccount", set_account))
-    app.add_handler(CommandHandler("referral", referral))
-    app.add_handler(CommandHandler("withdraw", withdraw))
-    app.add_handler(CommandHandler("withdrawals", withdrawals))
-    app.add_handler(CommandHandler("level", level))
     
     # Callback query handlers
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
     app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
+    app.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_.*"))
     app.add_handler(CallbackQueryHandler(bank_selection, pattern="^bank_.*"))
     
     # Message handlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^\d+$'), handle_account_number))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^[a-zA-Z ]+$'), handle_account_name))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_account_name))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^\d+\.?\d*$'), handle_withdrawal_amount))
     
     app.run_polling()

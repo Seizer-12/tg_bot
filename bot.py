@@ -190,9 +190,10 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user(user_id)
     
     # Mark tasks as completed
-    user_data["completed_initial_tasks"] = True
-    user_data["verified_user"] = True
-    user_data["points"] = user_data.get("points", 0) + 50  # 50 Naira for completing tasks
+    if not user_data["verified_user"]:
+        user_data["completed_initial_tasks"] = True
+        user_data["verified_user"] = True
+        user_data["points"] = user_data.get("points", 0) + 50  # 50 Naira for completing tasks
     
     update_user(user_id, user_data)
 

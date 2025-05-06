@@ -677,7 +677,7 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO, handle_task_proof))
 
     # Error handler
-    app.add_error_handler(error_handler)
+    #app.add_error_handler(error_handler)
     
     app.run_polling()
 
@@ -689,7 +689,8 @@ def main():
             chat_id=update.effective_user.id,
             text="❌ An error occurred. Please try again.",
             reply_markup=get_main_menu_keyboard()
-        )"""
+        )
+"""
 
 if __name__ == "__main__":
     main()

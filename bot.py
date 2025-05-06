@@ -114,6 +114,18 @@ def get_main_menu_keyboard():
         one_time_keyboard=False
     )
 
+def the_menu():
+    keyboard = [
+        [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
+        [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
+        [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
+        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")],
+        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return reply_markup
+
+
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -136,11 +148,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_user(user.id, user_data)
 
     keyboard = [
-        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
         [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
         [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
-        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
+        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")],
+        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
@@ -153,6 +165,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
+    reply_markup = the_menu()
 
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
@@ -160,8 +173,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise Exception("Not joined")
     except Exception as e:
         logger.error(f"Error verifying channel membership: {e}")
-        await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
-        return
+        await update.message.reply_text("❌ You have not joined the Telegram channel. Please do that first.", reply_markup)
 
     keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
     await query.edit_message_text(
@@ -169,6 +181,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Click the button below after you've followed us.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
 
 async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

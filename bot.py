@@ -9,7 +9,7 @@ from telegram.constants import ParseMode
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+    ApplicationBuilder, CommandHandler, ConversationHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
 
 load_dotenv()
@@ -18,7 +18,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TWITTER_HANDLE = os.getenv("TWITTER_HANDLE")
 BOT_USERNAME = "UtilizersBot"
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Add this to your .env file
+ADMIN_CHAT_ID = os.getenv("ADMIN_ID")  # Add this to your .env file
 
 # Conversion rate (points to Naira)
 POINTS_TO_NAIRA = 1  # 1 point = 1 Naira
@@ -246,8 +246,18 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_menu_keyboard()
     )
 
+#tasks
 async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    user_data = get_user(user_id)
+    
+    # Check if user has already claimed today
+    if has_claimed_today(user_data, "daily_tasks"):
+        await update.message.reply_text(
+            "❌ You've already completed tasks today. Come back tomorrow!",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return
     
     bot_link = "https://t.me/UtilizersBot"
     task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
@@ -257,11 +267,11 @@ async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_link3 = f"https://wa.me/?text={encoded_text}"
 
     message = (
-        f"📝 Available Tasks (Complete all to earn ₦50):\n\n"
+        f"📝 Available Tasks (Complete all to earn ₦50 daily):\n\n"
         f"1. Follow <a href='{task_link1}'>Utilizer01 on Twitter</a>\n\n"
         f"2. <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
         f"3. <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>\n\n"
-        "After completing all tasks, upload screenshots using /verifytasks"
+        "After completing all tasks, upload screenshots as proof to claim your ₦50 reward."
     )
     
     await update.message.reply_text(
@@ -269,6 +279,48 @@ async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
         reply_markup=get_main_menu_keyboard()
     )
+    context.user_data["awaiting_task_proof"] = True
+
+async def handle_task_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("awaiting_task_proof"):
+        return
+    
+    user_id = update.effective_user.id
+    user_data = get_user(user_id)
+    
+    # Check if user has already claimed today
+    if has_claimed_today(user_data, "daily_tasks"):
+        await update.message.reply_text(
+            "❌ You've already claimed your daily task reward today. Come back tomorrow!",
+            reply_markup=get_main_menu_keyboard()
+        )
+        context.user_data["awaiting_task_proof"] = False
+        return
+    
+    # Award the user
+    user_data["points"] = user_data.get("points", 0) + 50
+    mark_claimed_today(user_data, "daily_tasks")
+    update_user(user_id, user_data)
+    
+    await update.message.reply_text(
+        "✅ Screenshot received! You've been awarded ₦50 for completing today's tasks.",
+        reply_markup=get_main_menu_keyboard()
+    )
+    context.user_data["awaiting_task_proof"] = False
+
+
+async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    if not user["tasks_done"]:
+        user["tasks_done"] = True
+        user["balance"] += 50
+        update_user(user_id, user)
+        await update.message.reply_text("✅ Screenshot received. ₦50 added to your balance.")
+    else:
+        await update.message.reply_text("You've already submitted your tasks.")
+    return ConversationHandler.END
+
 
 async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -619,7 +671,8 @@ def main():
     
     # Message handlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-    
+    app.add_handler(MessageHandler(filters.PHOTO, handle_task_proof))
+
     # Error handler
     app.add_error_handler(error_handler)
     

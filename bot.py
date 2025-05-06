@@ -80,7 +80,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
-        [InlineKeyboardButton("📢 Join WhatsApp Channel", url="https://whatsapp.com/channel/xyz")],
+        [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
+        [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
         [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)

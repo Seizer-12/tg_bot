@@ -481,6 +481,7 @@ def main():
     
     # Callback query handlers
     app.add_handler(CallbackQueryHandler(confirm_twitter, pattern="^confirm_twitter$"))
+    app.add_handler(CallbackQueryHandler(verify_tasks, pattern="^verify_tasks$"))
     app.add_handler(CallbackQueryHandler(bank_selection, pattern="^bank_.*"))
     
     # Message handlers

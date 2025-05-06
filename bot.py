@@ -114,17 +114,6 @@ def get_main_menu_keyboard():
         one_time_keyboard=False
     )
 
-def the_menu():
-    keyboard = [
-        [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
-        [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
-        [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
-        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
-        [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    return reply_markup
-
 
 # --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -173,7 +162,7 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise Exception("Not joined")
     except Exception as e:
         logger.error(f"Error verifying channel membership: {e}")
-        await update.message.reply_text("❌ You have not joined the Telegram channel. Please do that first.", reply_markup)
+        await update.message.reply_text("❌ You have not joined the Telegram channel. Please do that first.")
 
     keyboard = [[InlineKeyboardButton("✅ I've Followed on Twitter", callback_data="confirm_twitter")]]
     await query.edit_message_text(
@@ -692,7 +681,7 @@ def main():
     
     app.run_polling()
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+"""async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
     
     if update and update.effective_user:
@@ -700,7 +689,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_user.id,
             text="❌ An error occurred. Please try again.",
             reply_markup=get_main_menu_keyboard()
-        )
+        )"""
 
 if __name__ == "__main__":
     main()

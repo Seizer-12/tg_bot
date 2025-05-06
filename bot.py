@@ -583,7 +583,7 @@ def main():
     
     # Message handlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(opay|palmpay)$', handle_bank_selection)))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(opay|palmpay)$'), handle_bank_selection))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^\d{10,}$'), handle_account_number))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^[a-zA-Z ]{2,}$'), handle_account_name))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^\d+\.?\d*$'), handle_withdrawal_amount))

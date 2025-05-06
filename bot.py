@@ -25,7 +25,10 @@ POINTS_TO_NAIRA = 1  # 1 point = 1 Naira
 DAILY_BONUS_AMOUNT = 25  # 25 Naira daily bonus
 
 # Logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 DATA_FILE = "user_data.json"
@@ -33,24 +36,36 @@ WITHDRAWAL_FILE = "withdrawals.json"
 
 # --- Utility Functions ---
 def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading data: {e}")
     return {}
 
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    try:
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        logger.error(f"Error saving data: {e}")
 
 def load_withdrawals():
-    if os.path.exists(WITHDRAWAL_FILE):
-        with open(WITHDRAWAL_FILE, "r") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(WITHDRAWAL_FILE):
+            with open(WITHDRAWAL_FILE, "r") as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading withdrawals: {e}")
     return {}
 
 def save_withdrawals(data):
-    with open(WITHDRAWAL_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    try:
+        with open(WITHDRAWAL_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        logger.error(f"Error saving withdrawals: {e}")
 
 def get_user(user_id):
     data = load_data()
@@ -67,7 +82,9 @@ def has_claimed_today(user_info, field):
 
 def mark_claimed_today(user_info, field):
     today = datetime.utcnow().date().isoformat()
-    user_info[field] = {"date": today}
+    if field not in user_info:
+        user_info[field] = {}
+    user_info[field]["date"] = today
 
 def calculate_level(user_data):
     referrals = user_data.get("referrals", 0)
@@ -127,7 +144,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"🎯 WELCOME {user.username} \n\nTo participate in the campaign, complete the tasks below:\n\n\n"
+        f"🎯 WELCOME {user.username or user.first_name} \n\nTo participate in the campaign, complete the tasks below:\n\n\n"
         "Click the Verify Tasks button below to verify!",
         reply_markup=reply_markup
     )
@@ -141,7 +158,8 @@ async def verify_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
         if member.status not in ["member", "administrator", "creator"]:
             raise Exception("Not joined")
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error verifying channel membership: {e}")
         await query.edit_message_text("❌ You have not joined the Telegram channel. Please do that first.")
         return
 
@@ -203,10 +221,20 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_main_menu_keyboard()
         )
     else:
-        await update.message.reply_text(
-            "I didn't understand that command. Please use the menu buttons.",
-            reply_markup=get_main_menu_keyboard()
-        )
+        # Handle context-specific inputs
+        if context.user_data.get("awaiting_bank"):
+            await handle_bank_selection(update, context)
+        elif context.user_data.get("awaiting_account_number"):
+            await handle_account_number(update, context)
+        elif context.user_data.get("awaiting_account_name"):
+            await handle_account_name(update, context)
+        elif context.user_data.get("awaiting_withdrawal_amount"):
+            await handle_withdrawal_amount(update, context)
+        else:
+            await update.message.reply_text(
+                "I didn't understand that command. Please use the menu buttons.",
+                reply_markup=get_main_menu_keyboard()
+            )
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -250,9 +278,9 @@ async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_data.get("account_set"):
         await update.message.reply_text(
             f"Your current account details:\n"
-            f"Bank: {user_data.get('bank_name')}\n"
-            f"Account Number: {user_data.get('account_number')}\n"
-            f"Account Name: {user_data.get('account_name')}\n\n"
+            f"Bank: {user_data.get('bank_name', 'Not set')}\n"
+            f"Account Number: {user_data.get('account_number', 'Not set')}\n"
+            f"Account Name: {user_data.get('account_name', 'Not set')}\n\n"
             "To update, please send:\n"
             "1. Your bank (OPay or PalmPay)\n"
             "2. Your account number\n"
@@ -307,7 +335,7 @@ async def handle_bank_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_account_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    account_number = update.message.text
+    account_number = update.message.text.strip()
     
     if not account_number.isdigit() or len(account_number) < 10:
         await update.message.reply_text(
@@ -333,9 +361,9 @@ async def handle_account_number(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    account_name = update.message.text
+    account_name = update.message.text.strip()
     
-    if len(account_name.strip()) < 2:
+    if len(account_name) < 2:
         await update.message.reply_text(
             "❌ Invalid account name. Please enter your full name.",
             reply_markup=get_main_menu_keyboard()
@@ -407,7 +435,7 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    amount_text = update.message.text
+    amount_text = update.message.text.strip()
     
     try:
         amount = float(amount_text)
@@ -431,7 +459,7 @@ async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT
         # Process withdrawal
         withdrawal_id = str(datetime.now().timestamp())
         withdrawal_data = {
-            "user_id": user_id,
+            "user_id": str(user_id),
             "amount": amount,
             "status": "pending",
             "date": datetime.utcnow().isoformat(),
@@ -448,23 +476,27 @@ async def handle_withdrawal_amount(update: Update, context: ContextTypes.DEFAULT
         save_withdrawals(withdrawals)
         
         # Deduct from user balance
-        user_data["points"] = user_data.get("points", 0) - (amount / POINTS_TO_NAIRA)
+        user_data["points"] = max(0, user_data.get("points", 0) - (amount / POINTS_TO_NAIRA))
         user_data["total_withdrawn"] = user_data.get("total_withdrawn", 0) + amount
         user_data["total_earned"] = user_data.get("total_earned", 0) + amount
         update_user(user_id, user_data)
         
         # Notify admin
         if ADMIN_CHAT_ID:
-            await context.bot.send_message(
-                chat_id=ADMIN_CHAT_ID,
-                text=f"🔄 New Withdrawal Request:\n\n"
-                     f"User: @{update.effective_user.username}\n"
-                     f"Amount: ₦{amount:,.2f}\n"
-                     f"Bank: {user_data.get('bank_name')}\n"
-                     f"Account Number: {user_data.get('account_number')}\n"
-                     f"Account Name: {user_data.get('account_name')}\n\n"
-                     f"Withdrawal ID: {withdrawal_id}"
-            )
+            try:
+                await context.bot.send_message(
+                    chat_id=ADMIN_CHAT_ID,
+                    text=f"🔄 New Withdrawal Request:\n\n"
+                         f"User: @{update.effective_user.username or update.effective_user.first_name}\n"
+                         f"User ID: {user_id}\n"
+                         f"Amount: ₦{amount:,.2f}\n"
+                         f"Bank: {user_data.get('bank_name')}\n"
+                         f"Account Number: {user_data.get('account_number')}\n"
+                         f"Account Name: {user_data.get('account_name')}\n\n"
+                         f"Withdrawal ID: {withdrawal_id}"
+                )
+            except Exception as e:
+                logger.error(f"Error sending admin notification: {e}")
         
         await update.message.reply_text(
             f"✅ Withdrawal request of ₦{amount:,.2f} submitted successfully!\n\n"
@@ -499,15 +531,19 @@ async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_earned = user_data.get("total_earned", 0)
     
     message = "📝 Your Withdrawal History:\n\n"
-    for w in user_withdrawals:
-        date = datetime.fromisoformat(w["date"]).strftime("%Y-%m-%d %H:%M")
-        message += (
-            f"💰 Amount: ₦{w['amount']:,.2f}\n"
-            f"📅 Date: {date}\n"
-            f"🔄 Status: {w['status']}\n"
-            f"🏦 Bank: {w['account_details']['bank']}\n"
-            f"🔢 Account: {w['account_details']['account_number']}\n\n"
-        )
+    for w in sorted(user_withdrawals, key=lambda x: x["date"], reverse=True):
+        try:
+            date = datetime.fromisoformat(w["date"]).strftime("%Y-%m-%d %H:%M")
+            message += (
+                f"💰 Amount: ₦{w['amount']:,.2f}\n"
+                f"📅 Date: {date}\n"
+                f"🔄 Status: {w.get('status', 'pending')}\n"
+                f"🏦 Bank: {w['account_details']['bank']}\n"
+                f"🔢 Account: {w['account_details']['account_number']}\n\n"
+            )
+        except Exception as e:
+            logger.error(f"Error formatting withdrawal record: {e}")
+            continue
     
     message += f"💵 Total Withdrawn: ₦{total_withdrawn:,.2f}\n"
     message += f"💸 Total Earned: ₦{total_earned:,.2f}"
@@ -566,7 +602,7 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"🎁 You've claimed your daily bonus of ₦{DAILY_BONUS_AMOUNT}!\n"
-        f"💰 Your new balance: ₦{user_data.get('points', 0) * POINTS_TO_NAIRA:,.2f}",
+        f"💰 Your new balance: ₦{(user_data.get('points', 0) * POINTS_TO_NAIRA):,.2f}",
         reply_markup=get_main_menu_keyboard()
     )
 
@@ -583,13 +619,21 @@ def main():
     
     # Message handlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(opay|palmpay)$'), handle_bank_selection))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^\d{10,}$'), handle_account_number))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^[a-zA-Z ]{2,}$'), handle_account_name))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^\d+\.?\d*$'), handle_withdrawal_amount))
+    
+    # Error handler
+    app.add_error_handler(error_handler)
     
     app.run_polling()
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Update {update} caused error {context.error}")
+    
+    if update and update.effective_user:
+        await context.bot.send_message(
+            chat_id=update.effective_user.id,
+            text="❌ An error occurred. Please try again.",
+            reply_markup=get_main_menu_keyboard()
+        )
 
 if __name__ == "__main__":
     main()

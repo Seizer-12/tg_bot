@@ -78,7 +78,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_user(user.id, user_data)
 
     keyboard = [
-        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME}")],
+        [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
         [InlineKeyboardButton("📢 Join WhatsApp Channel", url="https://whatsapp.com/channel/xyz")],
         [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]

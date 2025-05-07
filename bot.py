@@ -267,12 +267,14 @@ async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     encoded_text = urllib.parse.quote(post_text)
     task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
     task_link3 = f"https://wa.me/?text={encoded_text}"
+    task_link4 = "https://chat.whatsapp.com/JdhB8efTVAOGZzFKoS9S4d"
 
     message = (
         f"📝 Available Tasks (Complete all to earn ₦50 daily):\n\n"
         f"1. Follow <a href='{task_link1}'>Utilizer01 on Twitter</a>\n\n"
         f"2. <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
         f"3. <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>\n\n"
+        f"4. <a href='{task_link4}'>Wanna stream your fav music and earn ?\nJoin here</a>\n\n"
         "After completing all tasks, upload screenshots as proof to claim your ₦50 reward."
     )
     

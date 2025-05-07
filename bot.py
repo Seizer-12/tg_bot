@@ -124,7 +124,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             referrer_id = context.args[0]
             if referrer_id != str(user.id):
                 referrer_data = get_user(referrer_id)
-                referrer_data["points"] = referrer_data.get("points", 0) + 25
+                referrer_data["points"] = referrer_data.get("points", 0) + 70
+                user_data["total_earned"] = user_data.get("total_earned", 0) + 70
                 referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
                 user_data["referral"] = referrer_id
@@ -180,6 +181,7 @@ async def confirm_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["completed_initial_tasks"] = True
     user_data["verified_user"] = True
     user_data["points"] = user_data.get("points", 0) + 50  # 50 Naira for completing tasks
+    user_data["total_earned"] = user_data.get("total_earned", 0) + 50
     
     update_user(user_id, user_data)
 
@@ -299,6 +301,7 @@ async def handle_task_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Award the user
     user_data["points"] = user_data.get("points", 0) + 50
+    user_data["total_earned"] = user_data.get("total_earned", 0) + 50
     mark_claimed_today(user_data, "daily_tasks")
     update_user(user_id, user_data)
     
@@ -649,6 +652,7 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Award daily bonus
     user_data["points"] = user_data.get("points", 0) + DAILY_BONUS_AMOUNT
+    user_data["total_earned"] = user_data.get("total_earned", 0) + DAILY_BONUS_AMOUNT
     mark_claimed_today(user_data, "daily_bonus")
     update_user(user_id, user_data)
     

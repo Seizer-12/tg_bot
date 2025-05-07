@@ -263,7 +263,7 @@ async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     bot_link = "https://t.me/UtilizersBot"
     task_link1 = f"https://twitter.com/{TWITTER_HANDLE}"
-    post_text = f"I just joined the Utilizers, and you should too! \n\nGet picked as one of the 1,000 verified testers of THE UTILIZERS beta platform and earn $50 every 2 weeks for FREE. \n\nAct fast, spots are limited!\n\n{bot_link}"
+    post_text = f"I just joined the Utilizers, and you should too! \n\nGet started early and don't miss out. \n\nAct fast, and accumulate earnings!\n\n{bot_link}"
     encoded_text = urllib.parse.quote(post_text)
     task_link2 = f"https://twitter.com/intent/tweet?text={encoded_text}"
     task_link3 = f"https://wa.me/?text={encoded_text}"

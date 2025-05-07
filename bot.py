@@ -274,7 +274,7 @@ async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"1. Follow <a href='{task_link1}'>Utilizer01 on Twitter</a>\n\n"
         f"2. <a href='{task_link2}'>Post on X (Twitter)</a>\n\n"
         f"3. <a href='{task_link3}'>Share to 5 WhatsApp groups and your status</a>\n\n"
-        f"4. <a href='{task_link4}'>Wanna stream your fav music and earn ?\nJoin here</a>\n\n"
+        f"4. <a href='{task_link4}'>Wanna stream your fav music and earn ? Join here</a>\n\n"
         "After completing all tasks, upload screenshots as proof to claim your ₦50 reward."
     )
     

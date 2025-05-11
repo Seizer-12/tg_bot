@@ -125,7 +125,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if referrer_id != str(user.id):
                 referrer_data = get_user(referrer_id)
                 referrer_data["points"] = referrer_data.get("points", 0) + 70
-                user_data["total_earned"] = user_data.get("total_earned", 0) + 70
+                referrer_data["total_earned"] = user_data.get("total_earned", 0) + 70
                 referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
                 user_data["referral"] = referrer_id
@@ -140,6 +140,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🐦 Follow Twitter", url=f"https://twitter.com/{TWITTER_HANDLE}")],
         [InlineKeyboardButton("💬 Join Whatsapp Group", url="https://chat.whatsapp.com/KyBPEZKLjAZ8JMgFt9KMft")],
         [InlineKeyboardButton("📢 Join Whatsapp Channel", url="https://whatsapp.com/channel/0029VbAXEgUFy72Ich07Z53o")],
+	[InlineKeyboardButton("💬 Wanna Stream And Earn ?", url="https://chat.whatsapp.com/JdhB8efTVAOGZzFKoS9S4d")],
         [InlineKeyboardButton("✅ Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton("🔍 Verify Tasks", callback_data="verify_tasks")]
     ]
@@ -353,10 +354,7 @@ async def set_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "Please set your account details by sending:\n"
-        "1. Your bank (OPay or PalmPay)\n"
-        "2. Your account number\n"
-        "3. Your account name\n\n"
-        "In separate messages.",
+        "Your bank (OPay or PalmPay)\n",
         reply_markup=ReplyKeyboardMarkup(
             [["🏠 Main Menu"]],
             resize_keyboard=True
@@ -690,7 +688,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.effective_user:
         await context.bot.send_message(
             chat_id=update.effective_user.id,
-            text="❌ An error occurred. Please try again.",
+            text="❌ An error occurred but it's fine.\n\nContinue with the menu below...",
             reply_markup=get_main_menu_keyboard()
         )
 

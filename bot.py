@@ -124,7 +124,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             referrer_id = context.args[0]
             if referrer_id != str(user.id):
                 referrer_data = get_user(referrer_id)
-                referrer_data["points"] = referrer_data.get("points", 0) + 70
+                referrer_data["points"] = referrer_data.get("points", 0) + 5000
                 referrer_data["total_earned"] = user_data.get("total_earned", 0) + 70
                 referrer_data["referrals"] = referrer_data.get("referrals", 0) + 1
                 update_user(referrer_id, referrer_data)
